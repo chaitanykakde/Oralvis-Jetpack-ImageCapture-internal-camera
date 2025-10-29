@@ -1,0 +1,492 @@
+package com.chaitany.oralvisjetpack.ui.screens
+
+import android.net.Uri
+import android.util.Log
+import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.chaitany.oralvisjetpack.viewmodel.ImageSequenceViewModel
+import java.io.File
+import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ImageSequenceScreen(
+    folderName: String,
+    clinicId: Int,
+    patientId: Int,
+    onComplete: () -> Unit,
+    onBackPressed: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // Retrieve excelBytes from SharedPreferences
+    val excelBytes = remember {
+        val prefs = context.getSharedPreferences("patient_data", android.content.Context.MODE_PRIVATE)
+        val encodedBytes = prefs.getString("excel_bytes_${clinicId}_$patientId", null)
+        if (encodedBytes != null) {
+            android.util.Base64.decode(encodedBytes, android.util.Base64.DEFAULT)
+        } else {
+            ByteArray(0)
+        }
+    }
+    
+    val viewModel: ImageSequenceViewModel = remember {
+        ImageSequenceViewModel(context, folderName, clinicId, patientId, excelBytes)
+    }
+
+    // Collect state from ViewModel
+    val currentStep by viewModel.currentStep.collectAsState()
+    val captureStep by viewModel.currentCaptureStep.collectAsState()
+    val isFlashEnabled by viewModel.isFlashEnabled.collectAsState()
+    val isFrontCamera by viewModel.isFrontCamera.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isProcessing by viewModel.isProcessing.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val capturedImageUri by viewModel.capturedImageUri.collectAsState()
+    val capturedBitmap by viewModel.capturedBitmap.collectAsState()
+    val isMirrored by viewModel.isMirrored.collectAsState()
+
+    var showExitDialog by remember { mutableStateOf(false) }
+    
+    // CameraX setup
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var preview by remember { mutableStateOf<Preview?>(null) }
+    val executor: Executor = ContextCompat.getMainExecutor(context)
+    
+    // Back button handler
+    BackHandler {
+        showExitDialog = true
+    }
+
+    // Main UI - Layered Box with black background
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        // Show camera view if no image captured, otherwise show review screen
+        if (capturedImageUri == null) {
+            // CAMERA MODE - Layer 1: CameraX Preview (bottom layer - full screen)
+            AndroidView(
+            factory = { ctx ->
+                PreviewView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        ) { previewView ->
+            val cameraProvider = cameraProviderFuture.get()
+            
+            // Build camera selector
+            val cameraSelector = if (isFrontCamera) {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+            
+            // Build preview
+            preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            
+            // Build image capture
+            imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setFlashMode(if (isFlashEnabled) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF)
+                .build()
+            
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            } catch (e: Exception) {
+                Log.e("CameraPreview", "Failed to bind camera", e)
+            }
+        }
+
+            // Layer 2: Guide Overlay Image (if available)
+            captureStep?.overlayResId?.let { overlayId ->
+                if (overlayId != 0) {
+                    Image(
+                        painter = painterResource(id = overlayId),
+                        contentDescription = "Guide Overlay",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
+
+            // Layer 3: UI Controls & Guides (top layer)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+            // TOP: Step title
+            captureStep?.stepTitle?.let { title ->
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(16.dp)
+                )
+            }
+
+            // BOTTOM: Example image and control buttons
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Example reference image
+                captureStep?.exampleResId?.let { exampleId ->
+                    if (exampleId != 0) {
+                        Surface(
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(120.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            shadowElevation = 8.dp
+                        ) {
+                            Image(
+                                painter = painterResource(id = exampleId),
+                                contentDescription = "Example Image",
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Control buttons row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Flip Camera Button
+                    IconButton(
+                        onClick = { viewModel.onFlipCameraClicked() },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color.White.copy(alpha = 0.3f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Flip Camera",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    // Shutter Button
+                    IconButton(
+                        onClick = {
+                            imageCapture?.let { capture ->
+                                val photoFile = File(
+                                    context.cacheDir,
+                                    "camera_${System.currentTimeMillis()}.jpg"
+                                )
+
+                                val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+
+                                capture.takePicture(
+                                    outputOptions,
+                                    executor,
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                            val uri = Uri.fromFile(photoFile)
+                                            viewModel.setCapturedImage(uri)
+                                        }
+
+                                        override fun onError(exception: ImageCaptureException) {
+                                            Log.e("Camera", "Capture failed", exception)
+                                        }
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(Color.White, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Capture",
+                            tint = Color.Black,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Flash Button
+                    IconButton(
+                        onClick = { viewModel.onFlashClicked() },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                if (isFlashEnabled) Color.Yellow.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.3f),
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Flash",
+                            tint = if (isFlashEnabled) Color.Black else Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+            }
+        } else {
+            // REVIEW MODE - Show captured image with action buttons
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // TOP: Step title
+                captureStep?.stepTitle?.let { title ->
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(16.dp)
+                    )
+                }
+
+                // CENTER: Captured image preview
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    capturedBitmap?.let { bitmap ->
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Captured Image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .graphicsLayer(
+                                    scaleX = if (isMirrored && currentStep in listOf(1, 2)) -1f else 1f,
+                                    scaleY = if (isMirrored && currentStep in listOf(3, 4)) -1f else 1f
+                                ),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+
+                // BOTTOM: Action buttons
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        // Retake Button
+                        OutlinedButton(
+                            onClick = { viewModel.retakeImage() },
+                            enabled = !isProcessing,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Retake",
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Retake", color = Color.White)
+                        }
+
+                        // Mirror Button (only for certain steps)
+                        if (viewModel.canMirror()) {
+                            OutlinedButton(
+                                onClick = { viewModel.toggleMirror() },
+                                enabled = !isProcessing,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Mirror",
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (isMirrored) "Original" else "Mirror",
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        // Save & Next Button
+                        Button(
+                            onClick = {
+                                viewModel.saveAndNext(onComplete)
+                            },
+                            enabled = !isProcessing,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF3FBF8B)
+                            )
+                        ) {
+                            if (isProcessing && !isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Processing...")
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Save"
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save & Next")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Loading Overlay (for ZIP creation)
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    modifier = Modifier.size(120.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF3FBF8B)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Processing...",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
+        }
+
+        // Error message
+        errorMessage?.let { message ->
+            Snackbar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                Text(text = message)
+            }
+            LaunchedEffect(message) {
+                kotlinx.coroutines.delay(3000)
+                viewModel.clearError()
+            }
+        }
+    }
+
+    // Exit confirmation dialog
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Do you want to exit?") },
+            text = { Text("Your current progress won't be saved.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.onBackPressed()
+                        onBackPressed()
+                    }
+                ) {
+                    Text("Exit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
