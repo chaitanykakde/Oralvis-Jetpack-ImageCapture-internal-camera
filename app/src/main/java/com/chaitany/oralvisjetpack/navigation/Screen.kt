@@ -13,5 +13,11 @@ sealed class Screen(val route: String) {
         fun createRoute(folderName: String, clinicId: Int, patientId: Int) = 
             "image_sequence/$folderName/$clinicId/$patientId"
     }
+    object History : Screen("history/{clinicId}") {
+        fun createRoute(clinicId: Int) = "history/$clinicId"
+    }
+    object SessionDetail : Screen("session_detail/{patientId}/{clinicId}") {
+        fun createRoute(patientId: String, clinicId: Int) = "session_detail/$patientId/$clinicId"
+    }
 }
 

@@ -10,11 +10,15 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,7 +71,10 @@ fun ImageSequenceScreen(
     // Collect state
     val capturedImageUri by viewModel.capturedImageUri.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val isUploading by viewModel.isUploading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val allImagesCaptured by viewModel.allImagesCaptured.collectAsState()
+    val isRecaptureMode by viewModel.isRecaptureMode.collectAsState()
 
     var showExitDialog by remember { mutableStateOf(false) }
     
@@ -89,21 +96,41 @@ fun ImageSequenceScreen(
                 }
             )
         } else {
-            // Permission granted - show camera or review screen
-            if (capturedImageUri == null) {
-                // Camera mode - 40/40/20 layout
+            // Permission granted - show camera, review, or grid screen
+            if (allImagesCaptured) {
+                // Show grid screen with all captured images
+                ImageReviewGridScreen(
+                    folderName = folderName,
+                    clinicId = clinicId,
+                    patientId = patientId,
+                    imageFiles = viewModel.imageMemoryMap,
+                    excelBytes = excelBytes,
+                    onRecaptureImage = { stepIndex ->
+                        viewModel.setStepForRecapture(stepIndex)
+                    },
+                    onComplete = onComplete
+                )
+            } else if (capturedImageUri == null) {
+                // Camera mode
                 CameraCaptureLayout(viewModel = viewModel)
             } else {
                 // Review mode
                 ImageReviewLayout(
                     viewModel = viewModel,
-                    onComplete = onComplete
+                    onComplete = {
+                        // After saving, check if all images are captured
+                        if (viewModel.currentStep.value >= 7) {
+                            // All images captured, will show grid on next recomposition
+                        } else {
+                            // Continue to next step
+                        }
+                    }
                 )
             }
         }
 
         // Loading Overlay
-        if (isLoading) {
+        if (isLoading || isUploading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -123,7 +150,11 @@ fun ImageSequenceScreen(
                     ) {
                         CircularProgressIndicator(color = Color(0xFF3FBF8B))
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Processing...", fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text(
+                            text = if (isUploading) "Uploading to AWS..." else "Processing...",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
                     }
                 }
             }
@@ -218,112 +249,173 @@ fun CameraCaptureLayout(viewModel: ImageSequenceViewModel) {
     val captureStep by viewModel.currentCaptureStep.collectAsState()
     val isFlashEnabled by viewModel.isFlashEnabled.collectAsState()
     val isFrontCamera by viewModel.isFrontCamera.collectAsState()
+    val context = LocalContext.current
     
-    // 40/40/20 layout with black background
-    Column(
+    // Colors matching the design
+    val primaryBlue = Color(0xFF4A8BBF)
+    val darkBlue = Color(0xFF1E3A5F)
+    val lightBlueBorder = Color(0xFFE3F2FD)
+    
+    // 80/20 layout with white background and blue border (left, right, bottom only)
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.White)
             .systemBarsPadding()
     ) {
-        // Top 40% - Camera Preview Card
-        Card(
-            modifier = Modifier
-                .weight(0.4f)
-                .fillMaxWidth()
-                .padding(10.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            CameraPreview(
-                viewModel = viewModel,
-                isFlashEnabled = isFlashEnabled,
-                isFrontCamera = isFrontCamera,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        
-        // Middle 40% - Example Image Card
-        Card(
-            modifier = Modifier
-                .weight(0.4f)
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            captureStep?.exampleResId?.let { exampleId ->
-                Image(
-                    painter = painterResource(id = exampleId),
-                    contentDescription = "Example Image",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
-        }
-        
-        // Bottom 20% - Controls
+        // Border on left, right, and bottom
         Box(
             modifier = Modifier
-                .weight(0.2f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .border(width = 5.dp, color = lightBlueBorder)
+        )
+        
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+            // Header Section - Minimal, integrated into layout
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Flip Camera Button
-                IconButton(
-                    onClick = { viewModel.onFlipCameraClicked() },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(Color.White.copy(alpha = 0.3f), CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Flip Camera",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                // OralVis Logo
+                val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
+                if (logoResId != 0) {
+                    Image(
+                        painter = painterResource(id = logoResId),
+                        contentDescription = "OralVis Logo",
+                        modifier = Modifier.size(60.dp)
                     )
                 }
-
-                // Shutter Button (large white circle with black center - classic camera button)
-                IconButton(
-                    onClick = { viewModel.onCaptureClicked() },
-                    modifier = Modifier
-                        .size(72.dp)
-                        .background(Color.White, CircleShape)
-                ) {
-                    Box(
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Instruction Text
+                Text(
+                    text = "Kindly position your teeth according to the outline displayed below",
+                    fontSize = 13.sp,
+                    color = darkBlue,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    lineHeight = 18.sp
+                )
+            }
+            
+            // Preview Section (80% of remaining space)
+            Box(
+                modifier = Modifier
+                    .weight(0.8f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp)
+            ) {
+                // Camera Preview as bottom layer
+                CameraPreview(
+                    viewModel = viewModel,
+                    isFlashEnabled = isFlashEnabled,
+                    isFrontCamera = isFrontCamera,
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                // Overlay Image in center - teeth outline
+                captureStep?.overlayResId?.let { overlayId ->
+                    Image(
+                        painter = painterResource(id = overlayId),
+                        contentDescription = "Camera Overlay",
                         modifier = Modifier
-                            .size(50.dp)
-                            .background(Color.Transparent, CircleShape)
-                            .padding(4.dp)
+                            .fillMaxSize()
+                            .align(Alignment.Center),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                
+                // Guide Image in top right corner - teeth capturing guide
+                captureStep?.exampleResId?.let { guideId ->
+                    Image(
+                        painter = painterResource(id = guideId),
+                        contentDescription = "Teeth Guide",
+                        modifier = Modifier
+                            .size(120.dp)
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+            
+            // Controls Section (20% of remaining space)
+            Box(
+                modifier = Modifier
+                    .weight(0.2f)
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Flash/Torch Button (Left) - Lightning bolt icon
+                    IconButton(
+                        onClick = { viewModel.onFlashClicked() },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(
+                                color = if (isFlashEnabled) primaryBlue else Color.Transparent,
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 2.dp,
+                                color = primaryBlue,
+                                shape = CircleShape
+                            )
+                    ) {
+                        // Using text-based lightning bolt symbol
+                        Text(
+                            text = "⚡",
+                            fontSize = 24.sp,
+                            color = if (isFlashEnabled) Color.White else primaryBlue,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    // Shutter Button (Center) - Blue circle with white center
+                    IconButton(
+                        onClick = { viewModel.onCaptureClicked() },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(primaryBlue, CircleShape)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black, CircleShape)
+                                .size(56.dp)
+                                .background(Color.White, CircleShape)
                         )
                     }
-                }
 
-                // Flash/Torch Button
-                IconButton(
-                    onClick = { viewModel.onFlashClicked() },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(
-                            if (isFlashEnabled) Color.Yellow else Color.White.copy(alpha = 0.3f),
-                            CircleShape
+                    // Flip Camera Button (Right) - Circular arrow
+                    IconButton(
+                        onClick = { viewModel.onFlipCameraClicked() },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color.Transparent, CircleShape)
+                            .border(
+                                width = 2.dp,
+                                color = primaryBlue,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Flip Camera",
+                            tint = primaryBlue,
+                            modifier = Modifier.size(28.dp)
                         )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Flash",
-                        tint = if (isFlashEnabled) Color.Black else Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    }
                 }
             }
         }
@@ -421,94 +513,135 @@ fun ImageReviewLayout(
     val isMirrored by viewModel.isMirrored.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
     val currentStep by viewModel.currentStep.collectAsState()
+    val context = LocalContext.current
     
-    Column(
+    // Colors matching the design
+    val primaryBlue = Color(0xFF4A8BBF)
+    val darkBlue = Color(0xFF1E3A5F)
+    val lightBlueBorder = Color(0xFFE3F2FD)
+    
+    // Border on left, right, and bottom only
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .systemBarsPadding(),
-        verticalArrangement = Arrangement.SpaceBetween
+            .background(Color.White)
+            .systemBarsPadding()
     ) {
-        // Captured image preview
+        // Border decoration
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .border(width = 5.dp, color = lightBlueBorder)
+        )
+        
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            capturedBitmap?.let { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Captured Image",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .graphicsLayer(
-                            scaleX = if (isMirrored && currentStep in listOf(1, 2)) -1f else 1f,
-                            scaleY = if (isMirrored && currentStep in listOf(3, 4)) -1f else 1f
-                        ),
-                    contentScale = ContentScale.Fit
+            // Header Section - Minimal
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // OralVis Logo
+                val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
+                if (logoResId != 0) {
+                    Image(
+                        painter = painterResource(id = logoResId),
+                        contentDescription = "OralVis Logo",
+                        modifier = Modifier.size(60.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Instruction Text
+                Text(
+                    text = "Kindly position your teeth according to the outline displayed below",
+                    fontSize = 13.sp,
+                    color = darkBlue,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    lineHeight = 18.sp
                 )
             }
-        }
-
-        // Action buttons
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            
+            // Captured image preview (65-70% of screen) with rounded corners
+            Box(
+                modifier = Modifier
+                    .weight(0.7f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // Retake Button
-                OutlinedButton(
-                    onClick = { viewModel.retakeImage() },
-                    enabled = !isProcessing,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)
-                ) {
-                    Icon(imageVector = Icons.Default.Refresh, contentDescription = "Retake", tint = Color.White)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Retake", color = Color.White)
+                capturedBitmap?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Captured Image",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .graphicsLayer(
+                                scaleX = if (isMirrored && currentStep in listOf(1, 2)) -1f else 1f,
+                                scaleY = if (isMirrored && currentStep in listOf(3, 4)) -1f else 1f
+                            ),
+                        contentScale = ContentScale.Fit
+                    )
                 }
+            }
 
-                // Mirror Button (conditional)
-                if (viewModel.canMirror()) {
-                    OutlinedButton(
-                        onClick = { viewModel.toggleMirror() },
-                        enabled = !isProcessing,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = androidx.compose.foundation.BorderStroke(2.dp, Color.White)
-                    ) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Mirror", tint = Color.White)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isMirrored) "Original" else "Mirror", color = Color.White)
-                    }
-                }
-
-                // Save & Next Button
+            // Action buttons (15-20% of screen) - Stacked vertically
+            Column(
+                modifier = Modifier
+                    .weight(0.2f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Save & Next Button (Blue, solid) - Top button
                 Button(
                     onClick = { viewModel.saveAndNext(onComplete) },
-                    enabled = !isProcessing,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3FBF8B))
+                    enabled = !isProcessing && capturedBitmap != null && !capturedBitmap!!.isRecycled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 6.dp
+                    )
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(20.dp),
                             color = Color.White,
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Processing...")
+                        Text("Processing...", color = Color.White, fontSize = 16.sp)
                     } else {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = "Save")
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Save & Next")
+                        Text("Save and Next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
+                }
+                
+                // Retake Button (White with blue border) - Bottom button
+                OutlinedButton(
+                    onClick = { viewModel.retakeImage() },
+                    enabled = !isProcessing,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = primaryBlue,
+                        containerColor = Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, primaryBlue),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Retake", color = primaryBlue, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }

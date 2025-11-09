@@ -19,6 +19,25 @@ object ImageUtils {
         return stream.toByteArray()
     }
     
+    // Convert ByteArray to Bitmap
+    fun byteArrayToBitmap(bytes: ByteArray, maxWidth: Int = 800): Bitmap? {
+        return try {
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            
+            // Calculate sample size
+            options.inSampleSize = calculateInSampleSize(options, maxWidth, maxWidth)
+            options.inJustDecodeBounds = false
+            options.inPreferredConfig = Bitmap.Config.RGB_565 // Use less memory
+            
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
     // ✅ OPTIMIZED: Downsample images to save 80% memory + fix rotation
     fun uriToBitmapOptimized(
         context: Context,

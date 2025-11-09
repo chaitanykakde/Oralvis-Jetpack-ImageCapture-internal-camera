@@ -41,6 +41,12 @@ android {
     }
 }
 
+// Add testClasses task for compatibility (maps to Android test compilation tasks)
+tasks.register("testClasses") {
+    dependsOn("compileDebugUnitTestSources")
+    description = "Compiles test classes (compatibility task for Android projects)"
+}
+
 dependencies {
 
     implementation(libs.androidx.core.ktx)
@@ -78,6 +84,13 @@ dependencies {
     
     // Compression (for ZIP files)
     implementation(libs.apache.commons.compress)
+    
+    // AWS SDK (using known stable version)
+    implementation("com.amazonaws:aws-android-sdk-core:2.6.31")
+    implementation("com.amazonaws:aws-android-sdk-s3:2.6.31")
+    implementation("com.amazonaws:aws-android-sdk-ddb:2.6.31")
+    implementation("com.amazonaws:aws-android-sdk-ddb-mapper:2.6.31")
+    implementation("com.amazonaws:aws-android-sdk-cognito:2.6.31")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

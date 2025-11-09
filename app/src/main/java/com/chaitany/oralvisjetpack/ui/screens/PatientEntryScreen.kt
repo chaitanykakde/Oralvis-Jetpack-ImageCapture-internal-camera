@@ -7,21 +7,32 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaitany.oralvisjetpack.data.database.OralVisDatabase
 import com.chaitany.oralvisjetpack.data.repository.PatientCounterRepository
+import com.chaitany.oralvisjetpack.utils.PatientMetadataUtils
 import com.chaitany.oralvisjetpack.utils.PermissionUtils
 import com.chaitany.oralvisjetpack.viewmodel.PatientEntryViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -72,65 +83,115 @@ fun PatientEntryScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Patient Data Collection") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-    ) { paddingValues ->
+    // Colors matching the design
+    val primaryBlue = Color(0xFF4A8BBF)
+    val darkBlue = Color(0xFF1E3A5F)
+    val lightBlueBorder = Color(0xFFE3F2FD)
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .systemBarsPadding()
+    ) {
+        // Border on left, right, and bottom
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(width = 5.dp, color = lightBlueBorder)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.Start
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Clinic and Patient ID display
-            Text(
-                text = "Clinic ID: $clinicId",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Patient ID: ${patientCounter.toString().padStart(3, '0')}",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary
-            )
-
+            // OralVis Logo at top
+            val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
+            if (logoResId != 0) {
+                Image(
+                    painter = painterResource(id = logoResId),
+                    contentDescription = "OralVis Logo",
+                    modifier = Modifier.size(80.dp)
+                )
+            } else {
+                Text(
+                    text = "OralVis",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+            
             Spacer(modifier = Modifier.height(24.dp))
-
+            
+            // Main Title
+            Text(
+                text = "Patient data collection",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = darkBlue,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Instructional Text
+            Text(
+                text = "Please enter the patient's details to help us\ncreate an accurate dental report and\npersonalized treatment plan",
+                fontSize = 14.sp,
+                color = darkBlue,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Patient Name Field
             OutlinedTextField(
                 value = patientName,
                 onValueChange = { viewModel.updatePatientName(it) },
-                label = { Text("Patient Name") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                placeholder = { Text("Patient name", color = Color.Black.copy(alpha = 0.6f)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = lightBlueBorder,
+                    focusedBorderColor = primaryBlue,
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White
+                ),
+                enabled = !isLoading,
+                singleLine = true
             )
-
+            
             Spacer(modifier = Modifier.height(16.dp))
-
+            
+            // Age Field
             OutlinedTextField(
                 value = age,
                 onValueChange = { viewModel.updateAge(it) },
-                label = { Text("Age") },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Age", color = Color.Black.copy(alpha = 0.6f)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                enabled = !isLoading
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = lightBlueBorder,
+                    focusedBorderColor = primaryBlue,
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White
+                ),
+                enabled = !isLoading,
+                singleLine = true
             )
-
+            
             Spacer(modifier = Modifier.height(16.dp))
-
+            
             // Gender Dropdown
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
@@ -138,14 +199,28 @@ fun PatientEntryScreen(
                 onExpandedChange = { expanded = !expanded }
             ) {
                 OutlinedTextField(
-                    value = gender,
+                    value = if (gender.isEmpty()) "" else gender,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Gender") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    placeholder = { Text("Gender", color = Color.Black.copy(alpha = 0.6f)) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Dropdown",
+                            tint = darkBlue
+                        )
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(56.dp)
                         .menuAnchor(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = lightBlueBorder,
+                        focusedBorderColor = primaryBlue,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    ),
                     enabled = !isLoading
                 )
                 ExposedDropdownMenu(
@@ -154,7 +229,7 @@ fun PatientEntryScreen(
                 ) {
                     listOf("Male", "Female", "Other").forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option) },
+                            text = { Text(option, color = darkBlue) },
                             onClick = {
                                 viewModel.updateGender(option)
                                 expanded = false
@@ -163,29 +238,52 @@ fun PatientEntryScreen(
                     }
                 }
             }
-
+            
             Spacer(modifier = Modifier.height(16.dp))
-
+            
+            // Phone Number Field (Optional)
             OutlinedTextField(
                 value = phone,
                 onValueChange = { viewModel.updatePhone(it) },
-                label = { Text("Phone Number (optional)") },
-                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Phone number (Optional)", color = Color.Black.copy(alpha = 0.6f)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                enabled = !isLoading
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = lightBlueBorder,
+                    focusedBorderColor = primaryBlue,
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White
+                ),
+                enabled = !isLoading,
+                singleLine = true
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Save and Next Button
             Button(
                 onClick = {
                     viewModel.savePatientData { folderName, patientId, excelBytes ->
-                        // Store excelBytes in shared preferences or pass through ViewModel
+                        // Store excelBytes in shared preferences
                         context.getSharedPreferences("patient_data", android.content.Context.MODE_PRIVATE)
                             .edit()
                             .putString("excel_bytes_${clinicId}_$patientId", 
                                 android.util.Base64.encodeToString(excelBytes, android.util.Base64.DEFAULT))
                             .apply()
+                        
+                        // Store patient metadata for AWS upload
+                        PatientMetadataUtils.savePatientMetadata(
+                            context = context,
+                            clinicId = clinicId,
+                            patientId = patientId,
+                            name = patientName,
+                            age = age,
+                            gender = gender,
+                            phone = phone
+                        )
                         
                         // Check permissions before navigating
                         if (permissionsState.allPermissionsGranted) {
@@ -204,16 +302,25 @@ fun PatientEntryScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(50.dp)
+                    .shadow(4.dp, RoundedCornerShape(12.dp)),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
+                shape = RoundedCornerShape(12.dp),
                 enabled = !isLoading
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Save and Next")
+                    Text(
+                        text = "Save and Next",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
                 }
             }
 

@@ -12,9 +12,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.chaitany.oralvisjetpack.data.repository.ClinicRepository
-import com.chaitany.oralvisjetpack.ui.screens.ClinicEntryScreen
+import com.chaitany.oralvisjetpack.ui.screens.ClinicLoginScreen
+import com.chaitany.oralvisjetpack.ui.screens.HistoryScreen
 import com.chaitany.oralvisjetpack.ui.screens.ImageSequenceScreen
 import com.chaitany.oralvisjetpack.ui.screens.PatientEntryScreen
+import com.chaitany.oralvisjetpack.ui.screens.SessionDetailScreen
 import com.chaitany.oralvisjetpack.ui.screens.WelcomeScreen
 
 @Composable
@@ -28,7 +30,7 @@ fun NavGraph(
         startDestination = startDestination
     ) {
         composable(Screen.ClinicEntry.route) {
-            ClinicEntryScreen(
+            ClinicLoginScreen(
                 onClinicSaved = { clinicName, clinicId ->
                     navController.navigate(Screen.Welcome.createRoute(clinicName, clinicId)) {
                         popUpTo(Screen.ClinicEntry.route) { inclusive = true }
@@ -52,6 +54,9 @@ fun NavGraph(
                 clinicId = clinicId,
                 onProceed = {
                     navController.navigate(Screen.PatientEntry.createRoute(clinicName, clinicId))
+                },
+                onHistoryClick = {
+                    navController.navigate(Screen.History.createRoute(clinicId))
                 }
             )
         }
@@ -103,6 +108,46 @@ fun NavGraph(
                     }
                 },
                 onBackPressed = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.History.route,
+            arguments = listOf(
+                navArgument("clinicId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            
+            HistoryScreen(
+                clinicId = clinicId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onSessionClick = { patientId, clinicIdParam ->
+                    navController.navigate(
+                        Screen.SessionDetail.createRoute(patientId, clinicIdParam)
+                    )
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.SessionDetail.route,
+            arguments = listOf(
+                navArgument("patientId") { type = NavType.StringType },
+                navArgument("clinicId") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val patientId = backStackEntry.arguments?.getString("patientId") ?: ""
+            val clinicIdParam = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            
+            SessionDetailScreen(
+                patientId = patientId,
+                clinicId = clinicIdParam,
+                onBack = {
                     navController.popBackStack()
                 }
             )
