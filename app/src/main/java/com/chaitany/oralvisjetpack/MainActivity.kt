@@ -12,12 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
-import com.chaitany.oralvisjetpack.data.database.OralVisDatabase
-import com.chaitany.oralvisjetpack.data.repository.ClinicRepository
 import com.chaitany.oralvisjetpack.navigation.NavGraph
 import com.chaitany.oralvisjetpack.navigation.Screen
 import com.chaitany.oralvisjetpack.ui.theme.OralVisJetpackTheme
-import kotlinx.coroutines.launch
+import com.chaitany.oralvisjetpack.utils.PreferencesManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,40 +24,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             OralVisJetpackTheme {
                 val navController = rememberNavController()
-                val database = remember { OralVisDatabase.getDatabase(this) }
-                val clinicRepository = remember { ClinicRepository(database.clinicDao()) }
+                val preferencesManager = remember { PreferencesManager(this) }
                 
-                var startDestination by remember { mutableStateOf<String?>(null) }
-                val scope = rememberCoroutineScope()
-
-                LaunchedEffect(Unit) {
-                    scope.launch {
-                        val clinic = clinicRepository.getClinic()
-                        startDestination = if (clinic != null) {
-                            Screen.Welcome.createRoute(clinic.name, clinic.clinicId)
-                        } else {
-                            Screen.ClinicEntry.route
-                        }
-                    }
-                }
-
-                if (startDestination != null) {
-                    NavGraph(
-                        navController = navController,
-                        clinicRepository = clinicRepository,
-                        startDestination = startDestination!!
-                    )
+                // Check if user is logged in
+                val startDestination = if (preferencesManager.isLoggedIn()) {
+                    Screen.Welcome.createRoute()
                 } else {
-                    // Show loading while determining start destination
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Screen.Login.route
                 }
+
+                NavGraph(
+                    navController = navController,
+                    startDestination = startDestination
+                )
             }
         }
     }

@@ -5,58 +5,61 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.chaitany.oralvisjetpack.data.repository.ClinicRepository
-import com.chaitany.oralvisjetpack.ui.screens.ClinicLoginScreen
+import com.chaitany.oralvisjetpack.ui.screens.LoginScreen
 import com.chaitany.oralvisjetpack.ui.screens.HistoryScreen
 import com.chaitany.oralvisjetpack.ui.screens.ImageSequenceScreen
 import com.chaitany.oralvisjetpack.ui.screens.PatientEntryScreen
 import com.chaitany.oralvisjetpack.ui.screens.SessionDetailScreen
 import com.chaitany.oralvisjetpack.ui.screens.WelcomeScreen
+import com.chaitany.oralvisjetpack.utils.PreferencesManager
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    clinicRepository: ClinicRepository,
     startDestination: String
 ) {
+    val context = LocalContext.current
+    val preferencesManager = remember { PreferencesManager(context) }
+    
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
-        composable(Screen.ClinicEntry.route) {
-            ClinicLoginScreen(
-                onClinicSaved = { clinicName, clinicId ->
-                    navController.navigate(Screen.Welcome.createRoute(clinicName, clinicId)) {
-                        popUpTo(Screen.ClinicEntry.route) { inclusive = true }
+        composable(Screen.Login.route) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(Screen.Welcome.createRoute()) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(
-            route = Screen.Welcome.route,
-            arguments = listOf(
-                navArgument("clinicName") { type = NavType.StringType },
-                navArgument("clinicId") { type = NavType.IntType }
-            )
-        ) { backStackEntry ->
-            val clinicName = backStackEntry.arguments?.getString("clinicName") ?: ""
-            val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
-            
+        composable(Screen.Welcome.route) {
             WelcomeScreen(
-                clinicName = clinicName,
-                clinicId = clinicId,
                 onProceed = {
-                    navController.navigate(Screen.PatientEntry.createRoute(clinicName, clinicId))
+                    val clinicId = preferencesManager.getClinicIdInt()
+                    navController.navigate(Screen.PatientEntry.createRoute(clinicId))
                 },
                 onHistoryClick = {
+                    val clinicId = preferencesManager.getClinicIdInt()
                     navController.navigate(Screen.History.createRoute(clinicId))
+                },
+                onLogout = {
+                    // Clear session and navigate to login
+                    preferencesManager.clearClinicSession()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
+                    }
                 }
             )
         }
@@ -64,15 +67,12 @@ fun NavGraph(
         composable(
             route = Screen.PatientEntry.route,
             arguments = listOf(
-                navArgument("clinicName") { type = NavType.StringType },
                 navArgument("clinicId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
-            val clinicName = backStackEntry.arguments?.getString("clinicName") ?: ""
             val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
             
             PatientEntryScreen(
-                clinicName = clinicName,
                 clinicId = clinicId,
                 onNavigateToImageCapture = { folderName, patientId ->
                     navController.navigate(
@@ -94,16 +94,16 @@ fun NavGraph(
             val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
             val patientId = backStackEntry.arguments?.getInt("patientId") ?: 0
             
+            val scope = rememberCoroutineScope()
+            
             ImageSequenceScreen(
                 folderName = folderName,
                 clinicId = clinicId,
                 patientId = patientId,
                 onComplete = {
-                    // Navigate back to PatientEntry, clearing the image sequence screen
-                    navController.navigate(
-                        Screen.PatientEntry.createRoute("Unknown", clinicId)
-                    ) {
-                        popUpTo(Screen.Welcome.route) { inclusive = false }
+                    // Navigate back to Welcome screen after session completion
+                    navController.navigate(Screen.Welcome.createRoute()) {
+                        popUpTo(Screen.Welcome.route) { inclusive = true }
                         launchSingleTop = true
                     }
                 },

@@ -18,32 +18,41 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.chaitany.oralvisjetpack.data.database.OralVisDatabase
-import com.chaitany.oralvisjetpack.data.repository.ClinicRepository
-import com.chaitany.oralvisjetpack.viewmodel.ClinicEntryViewModel
+import com.chaitany.oralvisjetpack.viewmodel.LoginViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClinicLoginScreen(
-    onClinicSaved: (String, Int) -> Unit
+fun LoginScreen(
+    onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
-    val database = remember { OralVisDatabase.getDatabase(context) }
-    val repository = remember { ClinicRepository(database.clinicDao()) }
+    val viewModel: LoginViewModel = remember { LoginViewModel(context) }
     
-    val viewModel: ClinicEntryViewModel = remember {
-        ClinicEntryViewModel(repository)
-    }
-
-    val clinicName by viewModel.clinicName.collectAsState()
     val clinicId by viewModel.clinicId.collectAsState()
+    val password by viewModel.password.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-
+    val loginSuccess by viewModel.loginSuccess.collectAsState()
+    
+    // Password visibility state
+    var passwordVisible by remember { mutableStateOf(false) }
+    
+    // Navigate on successful login
+    LaunchedEffect(loginSuccess) {
+        if (loginSuccess != null) {
+            onLoginSuccess()
+        }
+    }
+    
     // Colors matching the design
     val primaryBlue = Color(0xFF4A8BBF)
     val darkBlue = Color(0xFF1E3A5F)
@@ -75,7 +84,7 @@ fun ClinicLoginScreen(
                 Image(
                     painter = painterResource(id = logoResId),
                     contentDescription = "Oravis Collect Logo",
-                    modifier = Modifier.size(80.dp)
+                    modifier = Modifier.size(120.dp)
                 )
             } else {
                 Text(
@@ -86,11 +95,11 @@ fun ClinicLoginScreen(
                 )
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             
             // Main Title
             Text(
-                text = "Clinic data collection",
+                text = "Clinic Login",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = darkBlue,
@@ -101,7 +110,7 @@ fun ClinicLoginScreen(
             
             // Instructional Text
             Text(
-                text = "Please enter your clinic details to\nbegin patient data collection",
+                text = "Please enter your clinic credentials to access the system",
                 fontSize = 14.sp,
                 color = darkBlue,
                 textAlign = TextAlign.Center,
@@ -110,15 +119,16 @@ fun ClinicLoginScreen(
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Clinic Name Field
+            // Clinic ID Field
             OutlinedTextField(
-                value = clinicName,
-                onValueChange = { viewModel.updateClinicName(it) },
-                placeholder = { Text("Clinic name", color = Color.Black.copy(alpha = 0.6f)) },
+                value = clinicId,
+                onValueChange = { viewModel.updateClinicId(it) },
+                placeholder = { Text("Clinic ID", color = Color.Black.copy(alpha = 0.6f)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = lightBlueBorder,
                     focusedBorderColor = primaryBlue,
@@ -134,16 +144,30 @@ fun ClinicLoginScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Clinic ID Field
+            // Password Field with Show/Hide toggle
             OutlinedTextField(
-                value = clinicId,
-                onValueChange = { viewModel.updateClinicId(it) },
-                placeholder = { Text("Clinic ID", color = Color.Black.copy(alpha = 0.6f)) },
+                value = password,
+                onValueChange = { viewModel.updatePassword(it) },
+                placeholder = { Text("Password", color = Color.Black.copy(alpha = 0.6f)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Filled.VisibilityOff
+                            } else {
+                                Icons.Filled.Visibility
+                            },
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            tint = darkBlue
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = lightBlueBorder,
                     focusedBorderColor = primaryBlue,
@@ -159,13 +183,9 @@ fun ClinicLoginScreen(
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            // Save and Next Button
+            // Login Button
             Button(
-                onClick = {
-                    viewModel.saveClinicInfo { name, id ->
-                        onClinicSaved(name, id)
-                    }
-                },
+                onClick = { viewModel.login() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
@@ -182,23 +202,26 @@ fun ClinicLoginScreen(
                     )
                 } else {
                     Text(
-                        text = "Save and Next",
+                        text = "Login",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
                 }
             }
-
+            
+            // Error Message
             errorMessage?.let { message ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = message,
                     color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 LaunchedEffect(message) {
-                    kotlinx.coroutines.delay(3000)
+                    kotlinx.coroutines.delay(5000)
                     viewModel.clearError()
                 }
             }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,15 +20,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaitany.oralvisjetpack.utils.PreferencesManager
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WelcomeScreen(
-    clinicName: String,
-    clinicId: Int,
     onProceed: () -> Unit,
-    onHistoryClick: () -> Unit
+    onHistoryClick: () -> Unit,
+    onLogout: () -> Unit
 ) {
     val context = LocalContext.current
+    val preferencesManager = remember { PreferencesManager(context) }
+    val clinicName = remember { preferencesManager.getClinicName() ?: "Clinic" }
     val density = LocalDensity.current
     
     // Colors matching the design
@@ -41,11 +46,38 @@ fun WelcomeScreen(
     // Background image
     val backgroundResId = context.resources.getIdentifier("backgroundhomepage", "drawable", context.packageName)
     
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = "Welcome, $clinicName",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
+                actions = {
+                    // Logout button
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            imageVector = Icons.Filled.ExitToApp,
+                            contentDescription = "Logout",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = primaryBlue
+                )
+            )
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(paddingValues)
+        ) {
         // Background image in center, 50% of screen height, with 10dp margins on left and right
         if (backgroundResId != 0) {
             Box(
@@ -69,21 +101,21 @@ fun WelcomeScreen(
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            // OralVis Logo positioned 40% more upper from center
-            val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
-            if (logoResId != 0) {
+            // Oravis Collect Small Logo positioned 40% more upper from center
+            val smallLogoResId = context.resources.getIdentifier("oralvissmalllogo", "drawable", context.packageName)
+            if (smallLogoResId != 0) {
                 Image(
-                    painter = painterResource(id = logoResId),
-                    contentDescription = "OralVis Logo",
+                    painter = painterResource(id = smallLogoResId),
+                    contentDescription = "Oravis Collect Logo",
                     modifier = Modifier
-                        .size(200.dp) // Increased from 120.dp to 200.dp for better visibility
+                        .size(120.dp) // Small logo size
                         .align(Alignment.TopCenter)
                         .padding(top = logoTopPadding)
                 )
             } else {
                 // Fallback text logo
                 Text(
-                    text = "OralVis",
+                    text = "Oravis Collect",
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black,
@@ -104,18 +136,7 @@ fun WelcomeScreen(
             ) {
                 // The background image already contains the tooth graphic, so we don't need a separate placeholder
                 
-                Spacer(modifier = Modifier.height(48.dp))
-                
-                // Welcome Message
-                Text(
-                    text = "Welcome to oralvis",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = darkBlue,
-                    textAlign = TextAlign.Center
-                )
-                
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(32.dp))
                 
                 // Proceed Button
                 Button(
@@ -155,6 +176,7 @@ fun WelcomeScreen(
                     )
                 }
             }
+        }
         }
     }
 }

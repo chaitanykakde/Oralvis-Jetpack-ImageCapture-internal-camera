@@ -38,7 +38,7 @@ class PatientEntryViewModel(
         loadPatientCounter()
     }
 
-    private fun loadPatientCounter() {
+    fun loadPatientCounter() {
         viewModelScope.launch {
             _patientCounter.value = patientCounterRepository.getPatientCounter()
         }

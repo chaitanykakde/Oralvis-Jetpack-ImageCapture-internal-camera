@@ -280,15 +280,23 @@ fun CameraCaptureLayout(viewModel: ImageSequenceViewModel) {
                     .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // OralVis Logo
-                val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
-                if (logoResId != 0) {
-                    Image(
-                        painter = painterResource(id = logoResId),
-                        contentDescription = "OralVis Logo",
-                        modifier = Modifier.size(60.dp)
-                    )
+                // Step Name instead of Logo
+                val currentStep by viewModel.currentStep.collectAsState()
+                val dentalSteps = viewModel.dentalSteps
+                val stepName = if (currentStep < dentalSteps.size) {
+                    dentalSteps[currentStep].instruction
+                } else {
+                    ""
                 }
+                
+                Text(
+                    text = stepName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = darkBlue,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
                 
                 Spacer(modifier = Modifier.height(6.dp))
                 
@@ -544,15 +552,22 @@ fun ImageReviewLayout(
                     .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // OralVis Logo
-                val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
-                if (logoResId != 0) {
-                    Image(
-                        painter = painterResource(id = logoResId),
-                        contentDescription = "OralVis Logo",
-                        modifier = Modifier.size(60.dp)
-                    )
+                // Step Name instead of Logo
+                val dentalSteps = viewModel.dentalSteps
+                val stepName = if (currentStep < dentalSteps.size) {
+                    dentalSteps[currentStep].instruction
+                } else {
+                    ""
                 }
+                
+                Text(
+                    text = stepName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = darkBlue,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
                 
                 Spacer(modifier = Modifier.height(6.dp))
                 

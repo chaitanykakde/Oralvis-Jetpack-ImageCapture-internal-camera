@@ -10,6 +10,9 @@ class PreferencesManager(context: Context) {
     
     companion object {
         private const val KEY_CURRENT_STEP = "current_step"
+        private const val KEY_CLINIC_ID = "clinic_id"
+        private const val KEY_CLINIC_NAME = "clinic_name"
+        private const val KEY_CLINIC_SHORT_NAME = "clinic_short_name"
     }
     
     fun saveCurrentStep(step: Int) {
@@ -22,6 +25,43 @@ class PreferencesManager(context: Context) {
     
     fun clearCurrentStep() {
         prefs.edit().remove(KEY_CURRENT_STEP).apply()
+    }
+    
+    // Clinic session management
+    fun saveClinicSession(clinicId: String, clinicName: String, shortName: String) {
+        prefs.edit()
+            .putString(KEY_CLINIC_ID, clinicId)
+            .putString(KEY_CLINIC_NAME, clinicName)
+            .putString(KEY_CLINIC_SHORT_NAME, shortName)
+            .apply()
+    }
+    
+    fun getClinicId(): String? {
+        return prefs.getString(KEY_CLINIC_ID, null)
+    }
+    
+    fun getClinicName(): String? {
+        return prefs.getString(KEY_CLINIC_NAME, null)
+    }
+    
+    fun getClinicShortName(): String? {
+        return prefs.getString(KEY_CLINIC_SHORT_NAME, null)
+    }
+    
+    fun getClinicIdInt(): Int {
+        return getClinicId()?.toIntOrNull() ?: 0
+    }
+    
+    fun clearClinicSession() {
+        prefs.edit()
+            .remove(KEY_CLINIC_ID)
+            .remove(KEY_CLINIC_NAME)
+            .remove(KEY_CLINIC_SHORT_NAME)
+            .apply()
+    }
+    
+    fun isLoggedIn(): Boolean {
+        return getClinicId() != null
     }
 }
 

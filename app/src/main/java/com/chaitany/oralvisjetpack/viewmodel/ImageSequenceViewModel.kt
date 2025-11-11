@@ -125,14 +125,14 @@ class ImageSequenceViewModel(
     }
 
     val dentalSteps = listOf(
-        DentalStep("Front teeth (closed bite)", getResourceId("dental_ref_1")),
-        DentalStep("Right side front teeth (closed bite)", getResourceId("dental_ref_2")),
-        DentalStep("Left side front teeth (closed bite)", getResourceId("dental_ref_3")),
-        DentalStep("Upper jaw (maxillary occlusal view)", getResourceId("dental_ref_4")),
-        DentalStep("Lower jaw (mandibular occlusal view)", getResourceId("dental_ref_5")),
-        DentalStep("Right cheek (buccal view)", getResourceId("dental_ref_6")),
-        DentalStep("Left cheek (buccal view)", getResourceId("dental_ref_7")),
-        DentalStep("Tongue (visible area)", getResourceId("dental_ref_8"))
+        DentalStep("1. Front teeth", getResourceId("dental_ref_1")),
+        DentalStep("2. Right Side teeth", getResourceId("dental_ref_2")),
+        DentalStep("3. Left Side teeth", getResourceId("dental_ref_3")),
+        DentalStep("4. Upper jaw", getResourceId("dental_ref_4")),
+        DentalStep("5. Lower jaw", getResourceId("dental_ref_5")),
+        DentalStep("6. Right cheek", getResourceId("dental_ref_6")),
+        DentalStep("7. Left cheek", getResourceId("dental_ref_7")),
+        DentalStep("8. Tongue", getResourceId("dental_ref_8"))
     )
     
     private val captureSteps = listOf(
@@ -311,6 +311,13 @@ class ImageSequenceViewModel(
                 _isUploading.value = true
                 _uploadSuccess.value = false
                 
+                // Get clinicId from active session (PreferencesManager)
+                // This ensures we use the logged-in clinic's ID, not a parameter
+                val activeClinicId = preferencesManager.getClinicIdInt()
+                if (activeClinicId == 0) {
+                    throw Exception("No active clinic session found")
+                }
+                
                 // Get credentials provider
                 val credentialsProvider = OralVisApplication.credentialsProvider
                 
@@ -334,7 +341,8 @@ class ImageSequenceViewModel(
                 val uploadJobs = imageMemoryMap.map { (fileName, imageBytes) ->
                     async {
                         try {
-                            val s3Key = "public/$clinicId/$patientId/$fileName"
+                            // Use activeClinicId from session for S3 path
+                            val s3Key = "public/$activeClinicId/$patientId/$fileName"
                             
                             val metadata = ObjectMetadata().apply {
                                 contentLength = imageBytes.size.toLong()
@@ -364,8 +372,8 @@ class ImageSequenceViewModel(
                     imagePaths[fileName] = s3Key
                 }
                 
-                // Get patient metadata
-                val patientMetadata = PatientMetadataUtils.getPatientMetadata(context, clinicId, patientId)
+                // Get patient metadata using activeClinicId
+                val patientMetadata = PatientMetadataUtils.getPatientMetadata(context, activeClinicId, patientId)
                 
                 if (patientMetadata != null) {
                     // Initialize DynamoDB client with region
@@ -379,10 +387,10 @@ class ImageSequenceViewModel(
                     // Initialize DynamoDB mapper
                     val dynamoDBMapper = DynamoDBMapper(dynamoDBClient)
                     
-                    // Create PatientData object
+                    // Create PatientData object with activeClinicId from session
                     val patientData = PatientData().apply {
                         this.patientId = patientId.toString()
-                        this.clinicId = clinicId
+                        this.clinicId = activeClinicId // Use clinicId from active session
                         this.name = patientMetadata.name
                         this.age = patientMetadata.age
                         this.gender = patientMetadata.gender

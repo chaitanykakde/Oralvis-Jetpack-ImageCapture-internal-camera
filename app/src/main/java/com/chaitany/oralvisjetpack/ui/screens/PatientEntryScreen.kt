@@ -41,7 +41,6 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun PatientEntryScreen(
-    clinicName: String,
     clinicId: Int,
     onNavigateToImageCapture: (String, Int) -> Unit
 ) {
@@ -60,6 +59,11 @@ fun PatientEntryScreen(
     val patientCounter by viewModel.patientCounter.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+
+    // Reload patient counter when screen is displayed to ensure it's up to date
+    LaunchedEffect(Unit) {
+        viewModel.loadPatientCounter()
+    }
 
     var showPermissionDialog by remember { mutableStateOf(false) }
     var pendingNavigation by remember { mutableStateOf<Pair<String, Int>?>(null) }
@@ -108,17 +112,17 @@ fun PatientEntryScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // OralVis Logo at top
-            val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
+            // Oravis Collect Logo at top
+            val logoResId = context.resources.getIdentifier("applogooralvis", "drawable", context.packageName)
             if (logoResId != 0) {
                 Image(
                     painter = painterResource(id = logoResId),
-                    contentDescription = "OralVis Logo",
+                    contentDescription = "Oravis Collect Logo",
                     modifier = Modifier.size(80.dp)
                 )
             } else {
                 Text(
-                    text = "OralVis",
+                    text = "Oravis Collect",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
@@ -147,7 +151,37 @@ fun PatientEntryScreen(
                 lineHeight = 20.sp
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Patient ID Display
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = primaryBlue.copy(alpha = 0.1f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Patient ID:",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = darkBlue
+                    )
+                    Text(
+                        text = "#${patientCounter}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryBlue
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Patient Name Field
             OutlinedTextField(
@@ -162,8 +196,11 @@ fun PatientEntryScreen(
                     unfocusedBorderColor = lightBlueBorder,
                     focusedBorderColor = primaryBlue,
                     unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    focusedContainerColor = Color.White,
+                    unfocusedTextColor = Color.Black,
+                    focusedTextColor = Color.Black
                 ),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                 enabled = !isLoading,
                 singleLine = true
             )
@@ -184,8 +221,11 @@ fun PatientEntryScreen(
                     unfocusedBorderColor = lightBlueBorder,
                     focusedBorderColor = primaryBlue,
                     unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    focusedContainerColor = Color.White,
+                    unfocusedTextColor = Color.Black,
+                    focusedTextColor = Color.Black
                 ),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                 enabled = !isLoading,
                 singleLine = true
             )
@@ -219,8 +259,11 @@ fun PatientEntryScreen(
                         unfocusedBorderColor = lightBlueBorder,
                         focusedBorderColor = primaryBlue,
                         unfocusedContainerColor = Color.White,
-                        focusedContainerColor = Color.White
+                        focusedContainerColor = Color.White,
+                        unfocusedTextColor = Color.Black,
+                        focusedTextColor = Color.Black
                     ),
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                     enabled = !isLoading
                 )
                 ExposedDropdownMenu(
@@ -255,8 +298,11 @@ fun PatientEntryScreen(
                     unfocusedBorderColor = lightBlueBorder,
                     focusedBorderColor = primaryBlue,
                     unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    focusedContainerColor = Color.White,
+                    unfocusedTextColor = Color.Black,
+                    focusedTextColor = Color.Black
                 ),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                 enabled = !isLoading,
                 singleLine = true
             )

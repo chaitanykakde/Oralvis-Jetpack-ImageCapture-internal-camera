@@ -8,12 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -51,7 +55,6 @@ fun ImageReviewGridScreen(
     val primaryBlue = Color(0xFF4A8BBF)
     val darkBlue = Color(0xFF1E3A5F)
     val lightBlueBorder = Color(0xFFE3F2FD)
-    val grayButton = Color(0xFF9E9E9E)
     
     var isUploading by remember { mutableStateOf(false) }
     var uploadMessage by remember { mutableStateOf<String?>(null) }
@@ -82,45 +85,24 @@ fun ImageReviewGridScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Header Section
+            // Header Section - Only instruction text
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Thin blue bar at top
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(primaryBlue)
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // OralVis Logo
-                val logoResId = context.resources.getIdentifier("oralvis_logo", "drawable", context.packageName)
-                if (logoResId != 0) {
-                    Image(
-                        painter = painterResource(id = logoResId),
-                        contentDescription = "OralVis Logo",
-                        modifier = Modifier.size(60.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
                 // Instruction Text
                 Text(
                     text = "Click on the image to capture your photo",
-                    fontSize = 14.sp,
-                    color = darkBlue,
-                    textAlign = TextAlign.Center
+                    fontSize = 16.sp,
+                    color = primaryBlue,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium
                 )
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             
             // Image Grid - 2 columns, 4 rows (8 images total)
             val imageList = (1..8).map { index ->
@@ -143,12 +125,12 @@ fun ImageReviewGridScreen(
                     Box(
                         modifier = Modifier
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(1.dp, lightBlueBorder, RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(2.dp, lightBlueBorder, RoundedCornerShape(12.dp))
+                            .background(Color.White)
                             .clickable {
                                 onRecaptureImage(stepIndex)
                             }
-                            .background(Color.White)
                     ) {
                         if (bitmap != null) {
                             Image(
@@ -170,13 +152,35 @@ fun ImageReviewGridScreen(
                                 )
                             }
                         }
+                        
+                        // Recapture icon in bottom-right corner
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(primaryBlue),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Recapture",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Upload Button
+            // Upload Button - Centered, Blue with Shadow
             Button(
                 onClick = {
                     isUploading = true
@@ -237,8 +241,9 @@ fun ImageReviewGridScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = grayButton),
+                    .height(50.dp)
+                    .shadow(4.dp, RoundedCornerShape(12.dp)),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryBlue),
                 shape = RoundedCornerShape(12.dp),
                 enabled = !isUploading
             ) {
@@ -249,7 +254,7 @@ fun ImageReviewGridScreen(
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Uploading...", color = Color.White, fontSize = 16.sp)
+                    Text("Uploading...", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 } else {
                     Text("Upload", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
