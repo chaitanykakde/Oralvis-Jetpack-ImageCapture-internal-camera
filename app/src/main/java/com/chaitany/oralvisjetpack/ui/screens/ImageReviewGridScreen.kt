@@ -189,6 +189,17 @@ fun ImageReviewGridScreen(
                     // Create zip file first, then add to queue
                     scope.launch(Dispatchers.IO) {
                         try {
+                            // Check storage permissions before creating zip
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                if (!android.os.Environment.isExternalStorageManager()) {
+                                    withContext(Dispatchers.Main) {
+                                        isUploading = false
+                                        uploadMessage = "Storage permission required. Please grant access in settings."
+                                    }
+                                    return@launch
+                                }
+                            }
+                            
                             val zipResult = ZipUtils.createZipFile(
                                 context = context,
                                 folderName = folderName,
@@ -213,7 +224,16 @@ fun ImageReviewGridScreen(
                                 val serviceIntent = Intent(context, UploadService::class.java).apply {
                                     action = UploadService.ACTION_START_UPLOAD
                                 }
-                                ContextCompat.startForegroundService(context, serviceIntent)
+                                try {
+                                    ContextCompat.startForegroundService(context, serviceIntent)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("ImageReviewGrid", "Failed to start upload service", e)
+                                    withContext(Dispatchers.Main) {
+                                        isUploading = false
+                                        uploadMessage = "Upload service error: ${e.message}"
+                                    }
+                                    return@launch
+                                }
                                 
                                 // Update UI on main thread
                                 withContext(Dispatchers.Main) {
@@ -227,14 +247,15 @@ fun ImageReviewGridScreen(
                                 // Update UI on main thread
                                 withContext(Dispatchers.Main) {
                                     isUploading = false
-                                    uploadMessage = "Error creating zip: ${error.message}"
+                                    uploadMessage = "Error creating zip: ${error.message}. Please check storage permissions."
                                 }
                             }
                         } catch (e: Exception) {
                             // Update UI on main thread
+                            android.util.Log.e("ImageReviewGrid", "Upload error", e)
                             withContext(Dispatchers.Main) {
                                 isUploading = false
-                                uploadMessage = "Error: ${e.message}"
+                                uploadMessage = "Error: ${e.message}. Please check storage permissions."
                             }
                         }
                     }

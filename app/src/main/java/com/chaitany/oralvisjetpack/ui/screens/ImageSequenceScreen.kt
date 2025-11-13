@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Cameraswitch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -405,7 +406,7 @@ fun CameraCaptureLayout(viewModel: ImageSequenceViewModel) {
                         )
                     }
 
-                    // Flip Camera Button (Right) - Circular arrow
+                    // Flip Camera Button (Right) - Camera switch icon
                     IconButton(
                         onClick = { viewModel.onFlipCameraClicked() },
                         modifier = Modifier
@@ -418,7 +419,7 @@ fun CameraCaptureLayout(viewModel: ImageSequenceViewModel) {
                             )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            imageVector = Icons.Outlined.Cameraswitch,
                             contentDescription = "Flip Camera",
                             tint = primaryBlue,
                             modifier = Modifier.size(28.dp)

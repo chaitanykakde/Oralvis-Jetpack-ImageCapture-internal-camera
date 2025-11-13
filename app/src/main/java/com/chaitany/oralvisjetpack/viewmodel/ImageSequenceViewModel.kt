@@ -341,8 +341,8 @@ class ImageSequenceViewModel(
                 val uploadJobs = imageMemoryMap.map { (fileName, imageBytes) ->
                     async {
                         try {
-                            // Use activeClinicId from session for S3 path
-                            val s3Key = "public/$activeClinicId/$patientId/$fileName"
+                            // Use activeClinicId + patientId prefix for S3 path (clinicId_patientId format)
+                            val s3Key = "public/${activeClinicId}_${patientId}/$fileName"
                             
                             val metadata = ObjectMetadata().apply {
                                 contentLength = imageBytes.size.toLong()
@@ -388,6 +388,7 @@ class ImageSequenceViewModel(
                     val dynamoDBMapper = DynamoDBMapper(dynamoDBClient)
                     
                     // Create PatientData object with activeClinicId from session
+                    val finalTimestamp = patientMetadata.timestamp ?: System.currentTimeMillis()
                     val patientData = PatientData().apply {
                         this.patientId = patientId.toString()
                         this.clinicId = activeClinicId // Use clinicId from active session
@@ -396,11 +397,17 @@ class ImageSequenceViewModel(
                         this.gender = patientMetadata.gender
                         this.phone = patientMetadata.phone
                         this.imagePaths = imagePaths
+                        this.timestamp = finalTimestamp
                     }
+                    
+                    // Log timestamp before saving
+                    val timestampStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date(finalTimestamp))
+                    Log.d("ImageSequenceVM", "Saving patient data to DynamoDB: patientId=$patientId, timestamp=$finalTimestamp ($timestampStr)")
                     
                     // Save to DynamoDB
                     dynamoDBMapper.save(patientData)
-                    Log.d("ImageSequenceVM", "Saved patient data to DynamoDB")
+                    Log.d("ImageSequenceVM", "Successfully saved patient data to DynamoDB with timestamp=$finalTimestamp")
                     
                     withContext(Dispatchers.Main) {
                         _uploadSuccess.value = true

@@ -13,7 +13,8 @@ object PatientMetadataUtils {
         name: String,
         age: String,
         gender: String,
-        phone: String
+        phone: String,
+        timestamp: Long? = null
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -21,6 +22,7 @@ object PatientMetadataUtils {
             .putString("age_${clinicId}_$patientId", age)
             .putString("gender_${clinicId}_$patientId", gender)
             .putString("phone_${clinicId}_$patientId", phone)
+            .putLong("timestamp_${clinicId}_$patientId", timestamp ?: System.currentTimeMillis())
             .apply()
     }
     
@@ -34,9 +36,10 @@ object PatientMetadataUtils {
         val age = prefs.getString("age_${clinicId}_$patientId", null)
         val gender = prefs.getString("gender_${clinicId}_$patientId", null)
         val phone = prefs.getString("phone_${clinicId}_$patientId", null)
+        val timestamp = prefs.getLong("timestamp_${clinicId}_$patientId", 0L)
         
         return if (name != null && age != null && gender != null) {
-            PatientMetadata(name, age, gender, phone ?: "")
+            PatientMetadata(name, age, gender, phone ?: "", if (timestamp > 0) timestamp else null)
         } else {
             null
         }
@@ -46,9 +49,12 @@ object PatientMetadataUtils {
         val name: String,
         val age: String,
         val gender: String,
-        val phone: String
+        val phone: String,
+        val timestamp: Long? = null
     )
 }
+
+
 
 
 

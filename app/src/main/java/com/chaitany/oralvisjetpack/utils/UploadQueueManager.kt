@@ -417,7 +417,7 @@ object UploadQueueManager {
                 // Initialize DynamoDB mapper
                 val dynamoDBMapper = DynamoDBMapper(dynamoDBClient)
                 
-                // Create PatientData object
+                // Create PatientData object with timestamp
                 val patientData = PatientData().apply {
                     this.patientId = patientId.toString()
                     this.clinicId = clinicId
@@ -426,12 +426,17 @@ object UploadQueueManager {
                     this.gender = patientMetadata.gender
                     this.phone = patientMetadata.phone
                     this.imagePaths = imagePaths
+                    this.timestamp = patientMetadata.timestamp ?: System.currentTimeMillis()
                 }
                 
+                // Log timestamp before saving
+                val timestampStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                    .format(java.util.Date(patientData.timestamp!!))
+                Log.d(TAG, "Saving patient data to DynamoDB: patientId=$patientId, timestamp=${patientData.timestamp} ($timestampStr)")
+                
                 // Save to DynamoDB
-                Log.d(TAG, "Saving patient data to DynamoDB")
                 dynamoDBMapper.save(patientData)
-                Log.d(TAG, "Successfully saved patient data to DynamoDB")
+                Log.d(TAG, "Successfully saved patient data to DynamoDB with timestamp=${patientData.timestamp}")
                 
                 onComplete(true)
             } else {

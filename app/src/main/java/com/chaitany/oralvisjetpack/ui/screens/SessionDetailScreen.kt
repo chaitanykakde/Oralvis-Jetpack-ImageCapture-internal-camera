@@ -129,7 +129,7 @@ fun SessionDetailScreen(
                                     withContext(Dispatchers.Main) {
                                         isDownloading = false
                                         result.onSuccess { zipFile ->
-                                            downloadMessage = "Downloaded to: ${zipFile.name}"
+                                            downloadMessage = "Downloaded to: Documents/myapp/${zipFile.name}\nFull path: ${zipFile.absolutePath}"
                                         }.onFailure { error ->
                                             downloadMessage = "Download failed: ${error.message}"
                                         }

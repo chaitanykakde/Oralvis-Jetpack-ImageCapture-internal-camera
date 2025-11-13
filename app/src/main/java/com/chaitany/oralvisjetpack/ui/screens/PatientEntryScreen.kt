@@ -112,18 +112,18 @@ fun PatientEntryScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Oravis Collect Logo at top
-            val logoResId = context.resources.getIdentifier("applogooralvis", "drawable", context.packageName)
-            if (logoResId != 0) {
+            // Small Oralvis Horizontal Logo at top
+            val smallLogoResId = context.resources.getIdentifier("oralvissmalllogo", "drawable", context.packageName)
+            if (smallLogoResId != 0) {
                 Image(
-                    painter = painterResource(id = logoResId),
-                    contentDescription = "Oravis Collect Logo",
+                    painter = painterResource(id = smallLogoResId),
+                    contentDescription = "Oralvis Logo",
                     modifier = Modifier.size(80.dp)
                 )
             } else {
                 Text(
-                    text = "Oravis Collect",
-                    fontSize = 24.sp,
+                    text = "Oralvis",
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
@@ -312,7 +312,7 @@ fun PatientEntryScreen(
             // Save and Next Button
             Button(
                 onClick = {
-                    viewModel.savePatientData { folderName, patientId, excelBytes ->
+                    viewModel.savePatientData { folderName, patientId, excelBytes, timestamp ->
                         // Store excelBytes in shared preferences
                         context.getSharedPreferences("patient_data", android.content.Context.MODE_PRIVATE)
                             .edit()
@@ -320,7 +320,7 @@ fun PatientEntryScreen(
                                 android.util.Base64.encodeToString(excelBytes, android.util.Base64.DEFAULT))
                             .apply()
                         
-                        // Store patient metadata for AWS upload
+                        // Store patient metadata for AWS upload with timestamp
                         PatientMetadataUtils.savePatientMetadata(
                             context = context,
                             clinicId = clinicId,
@@ -328,7 +328,8 @@ fun PatientEntryScreen(
                             name = patientName,
                             age = age,
                             gender = gender,
-                            phone = phone
+                            phone = phone,
+                            timestamp = timestamp
                         )
                         
                         // Check permissions before navigating

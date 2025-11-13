@@ -25,8 +25,13 @@ data class PatientData(
     var phone: String? = null,
     
     @DynamoDBAttribute(attributeName = "imagePaths")
-    var imagePaths: Map<String, String>? = null
+    var imagePaths: Map<String, String>? = null,
+    
+    @DynamoDBAttribute(attributeName = "timestamp")
+    var timestamp: Long? = null
 )
+
+
 
 
 

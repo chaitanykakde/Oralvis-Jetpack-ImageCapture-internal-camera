@@ -80,9 +80,33 @@ object SessionDownloadUtils {
                 }
             }
             
+            // Add Excel file to zip (same as when creating zip locally)
+            try {
+                val prefs = context.getSharedPreferences("patient_data", Context.MODE_PRIVATE)
+                val encodedBytes = prefs.getString("excel_bytes_${clinicId}_$patientId", null)
+                if (encodedBytes != null) {
+                    val excelBytes = android.util.Base64.decode(encodedBytes, android.util.Base64.DEFAULT)
+                    val excelFileName = "${clinicId}_$patientId.csv"
+                    val excelEntry = ZipArchiveEntry(excelFileName)
+                    excelEntry.size = excelBytes.size.toLong()
+                    zipOutputStream.putArchiveEntry(excelEntry)
+                    zipOutputStream.write(excelBytes)
+                    zipOutputStream.closeArchiveEntry()
+                    Log.d(TAG, "Added Excel file to zip: $excelFileName")
+                } else {
+                    Log.w(TAG, "Excel file not found in SharedPreferences for clinicId=$clinicId, patientId=$patientId")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error adding Excel file to zip", e)
+                // Continue even if Excel file fails
+            }
+            
             zipOutputStream.close()
             
-            Log.d(TAG, "Zip file created successfully: ${zipFile.absolutePath}")
+            val zipPath = zipFile.absolutePath
+            Log.d(TAG, "Zip file created successfully: $zipPath")
+            Log.d(TAG, "Download location: Documents/myapp/ folder")
+            Log.d(TAG, "Full path: $zipPath")
             Result.success(zipFile)
         } catch (e: Exception) {
             Log.e(TAG, "Error creating zip file", e)
@@ -90,4 +114,6 @@ object SessionDownloadUtils {
         }
     }
 }
+
+
 

@@ -64,7 +64,7 @@ class PatientEntryViewModel(
         _errorMessage.value = null
     }
 
-    fun savePatientData(onSuccess: (String, Int, ByteArray) -> Unit) {
+    fun savePatientData(onSuccess: (String, Int, ByteArray, Long) -> Unit) {
         viewModelScope.launch {
             val name = _patientName.value.trim()
             val ageValue = _age.value.trim()
@@ -94,16 +94,18 @@ class PatientEntryViewModel(
                 val folderName = "${name.replace(" ", "_")}_$phoneSuffix"
 
                 // Create CSV file (lightweight alternative to Excel - saves ~20MB APK size)
+                val timestamp = System.currentTimeMillis()
                 val csvBytes = CSVUtils.createPatientCSV(
                     name = name,
                     age = ageValue,
                     gender = genderValue,
-                    phone = phoneValue
+                    phone = phoneValue,
+                    timestamp = timestamp
                 )
 
                 val currentCounter = _patientCounter.value
                 
-                onSuccess(folderName, currentCounter, csvBytes)
+                onSuccess(folderName, currentCounter, csvBytes, timestamp)
 
                 // Increment counter for next patient
                 patientCounterRepository.updatePatientCounter(currentCounter + 1)

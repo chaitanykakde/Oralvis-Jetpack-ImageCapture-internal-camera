@@ -45,13 +45,65 @@ class HistoryViewModel(private val context: Context) : ViewModel() {
                     fetchPatientsFromDynamoDB(clinicId)
                 }
                 
-                // Sort by patientId (descending) to show newest first
-                val sortedPatients = patientsList.sortedByDescending { 
-                    it.patientId?.toIntOrNull() ?: 0 
+                // Log all fetched patients for debugging
+                Log.d("HistoryViewModel", "Fetched ${patientsList.size} total patients from database")
+                patientsList.forEach { patient ->
+                    Log.d("HistoryViewModel", "Fetched Patient ${patient.patientId}: timestamp=${patient.timestamp}, name=${patient.name}")
                 }
                 
+                // Check timestamp values for all patients
+                patientsList.forEach { patient ->
+                    Log.d("HistoryViewModel", "Checking Patient ${patient.patientId}: timestamp=${patient.timestamp}, timestamp type=${patient.timestamp?.javaClass?.simpleName}")
+                }
+                
+                // Filter out patients without timestamps - only show new patients with timestamps
+                // But also include patients with timestamps that might be 0 or null (for debugging)
+                val patientsWithTimestamps = patientsList.filter { patient ->
+                    val hasTimestamp = patient.timestamp != null && patient.timestamp!! > 0L
+                    if (!hasTimestamp) {
+                        Log.w("HistoryViewModel", "Filtering out Patient ${patient.patientId}: timestamp is null or <= 0")
+                    }
+                    hasTimestamp
+                }
+                
+                Log.d("HistoryViewModel", "After filtering: ${patientsWithTimestamps.size} patients with valid timestamps out of ${patientsList.size} total")
+                
+                if (patientsWithTimestamps.isEmpty()) {
+                    if (patientsList.isNotEmpty()) {
+                        Log.w("HistoryViewModel", "WARNING: No patients with timestamps found! Showing all patients for debugging.")
+                        // Temporarily show all patients if none have timestamps (for debugging)
+                        // This helps us see if patients exist but just don't have timestamps
+                        val allPatientsSorted = patientsList.sortedByDescending { patient ->
+                            patient.timestamp ?: 0L
+                        }
+                        _patients.value = allPatientsSorted
+                    } else {
+                        Log.w("HistoryViewModel", "No patients found at all for clinic $clinicId")
+                        _patients.value = emptyList()
+                    }
+                    return@launch
+                }
+                
+                patientsWithTimestamps.forEach { patient ->
+                    Log.d("HistoryViewModel", "Valid Patient ${patient.patientId}: timestamp=${patient.timestamp}, name=${patient.name}")
+                }
+                
+                // Sort by timestamp (descending) to show newest first
+                val sortedPatients = patientsWithTimestamps.sortedByDescending { patient ->
+                    patient.timestamp!!
+                }
+                
+                // Log final sorted order
+                Log.d("HistoryViewModel", "Final sorted list (${sortedPatients.size} patients):")
+                sortedPatients.forEachIndexed { index, patient ->
+                    val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date(patient.timestamp!!))
+                    Log.d("HistoryViewModel", "  [$index] Patient ${patient.patientId}: timestamp=${patient.timestamp} ($dateStr), name=${patient.name}")
+                }
+                
+                // Update the list atomically - all at once to prevent partial updates
                 _patients.value = sortedPatients
-                Log.d("HistoryViewModel", "Loaded ${sortedPatients.size} patients for clinic $clinicId")
+                Log.d("HistoryViewModel", "Updated UI with ${sortedPatients.size} patients for clinic $clinicId")
             } catch (e: Exception) {
                 Log.e("HistoryViewModel", "Error loading patients", e)
                 _errorMessage.value = "Failed to load history: ${e.message}"
@@ -108,6 +160,17 @@ class HistoryViewModel(private val context: Context) : ViewModel() {
                             item["imagePaths"]?.m?.let { mapAttr ->
                                 patient.imagePaths = mapAttr.mapValues { it.value.s ?: "" }
                             }
+                            // Read timestamp (can be number or string)
+                            patient.timestamp = item["timestamp"]?.n?.toLongOrNull()
+                                ?: item["timestamp"]?.s?.toLongOrNull()
+                            
+                            // Log timestamp reading for debugging
+                            if (patient.timestamp == null) {
+                                Log.w("HistoryViewModel", "Patient ${patient.patientId} has no timestamp in database")
+                            } else {
+                                Log.d("HistoryViewModel", "Patient ${patient.patientId} timestamp: ${patient.timestamp}")
+                            }
+                            
                             patient
                         } catch (e: Exception) {
                             Log.e("HistoryViewModel", "Error converting item to PatientData", e)
@@ -133,7 +196,15 @@ class HistoryViewModel(private val context: Context) : ViewModel() {
                         scanExpression
                     )
                     
-                    scanResult.toList()
+                    val scannedPatients = scanResult.toList()
+                    
+                    // Log scanned patients and their timestamps
+                    Log.d("HistoryViewModel", "Scanned ${scannedPatients.size} patients")
+                    scannedPatients.forEach { patient ->
+                        Log.d("HistoryViewModel", "Scanned Patient ${patient.patientId}: timestamp=${patient.timestamp}, name=${patient.name}")
+                    }
+                    
+                    scannedPatients
                 }
                 
                 Log.d("HistoryViewModel", "Fetched ${patientsList.size} patients from DynamoDB for clinicId=$clinicId")

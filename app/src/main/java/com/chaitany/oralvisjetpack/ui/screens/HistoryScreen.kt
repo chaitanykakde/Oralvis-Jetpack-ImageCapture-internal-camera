@@ -60,25 +60,48 @@ fun HistoryScreen(
     }
     
     // Filter patients based on search query
+    // Note: ViewModel already filters to only patients with timestamps and sorts them
     val filteredPatients = remember(patients, searchQuery) {
         if (searchQuery.isBlank()) {
-            patients
+            patients // Already filtered and sorted by ViewModel
         } else {
+            // Filter by search query, but patients are already sorted by timestamp from ViewModel
             patients.filter { patient ->
                 patient.name?.contains(searchQuery, ignoreCase = true) == true
             }
         }
     }
     
-    // Sort for Recent tab (most recent first)
+    // Sort for both tabs (most recent first by timestamp)
+    // ViewModel already provides sorted list, but we ensure consistency here
     val sortedPatients = remember(filteredPatients, selectedTab) {
+        // Patients are already sorted by timestamp (descending) from ViewModel
+        // Just ensure they're in correct order (should already be sorted)
+        val sorted = filteredPatients.sortedByDescending { patient ->
+            patient.timestamp ?: 0L
+        }
+        
         when (selectedTab) {
-            HistoryTab.History -> filteredPatients.sortedByDescending { 
-                it.patientId?.toIntOrNull() ?: 0 
+            HistoryTab.History -> {
+                // All sessions, most recent first
+                android.util.Log.d("HistoryScreen", "History tab: showing ${sorted.size} patients")
+                sorted
             }
-            HistoryTab.Recent -> filteredPatients.sortedByDescending { 
-                it.patientId?.toIntOrNull() ?: 0 
-            }.take(1) // Most recent session only
+            HistoryTab.Recent -> {
+                // Most recent session only (first item after descending sort)
+                val recent = sorted.take(1)
+                // Log for debugging
+                recent.firstOrNull()?.let { patient ->
+                    val dateStr = patient.timestamp?.let {
+                        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                            .format(java.util.Date(it))
+                    } ?: "No timestamp"
+                    android.util.Log.d("HistoryScreen", "Recent tab showing: Patient ${patient.patientId}, timestamp=${patient.timestamp} ($dateStr), name=${patient.name}")
+                } ?: run {
+                    android.util.Log.d("HistoryScreen", "Recent tab: No patients to show")
+                }
+                recent
+            }
         }
     }
     
@@ -198,8 +221,11 @@ fun HistoryScreen(
                             unfocusedBorderColor = lightBlueBorder,
                             focusedBorderColor = primaryBlue,
                             unfocusedContainerColor = Color.White,
-                            focusedContainerColor = Color.White
+                            focusedContainerColor = Color.White,
+                            unfocusedTextColor = Color.Black,
+                            focusedTextColor = Color.Black
                         ),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black),
                         singleLine = true
                     )
                     

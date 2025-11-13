@@ -78,18 +78,18 @@ fun LoginScreen(
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Oravis Collect Logo at top
-            val logoResId = context.resources.getIdentifier("applogooralvis", "drawable", context.packageName)
-            if (logoResId != 0) {
+            // Small Oralvis Horizontal Logo at top
+            val smallLogoResId = context.resources.getIdentifier("oralvissmalllogo", "drawable", context.packageName)
+            if (smallLogoResId != 0) {
                 Image(
-                    painter = painterResource(id = logoResId),
-                    contentDescription = "Oravis Collect Logo",
-                    modifier = Modifier.size(120.dp)
+                    painter = painterResource(id = smallLogoResId),
+                    contentDescription = "Oralvis Logo",
+                    modifier = Modifier.size(80.dp)
                 )
             } else {
                 Text(
-                    text = "Oravis Collect",
-                    fontSize = 24.sp,
+                    text = "Oralvis",
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
