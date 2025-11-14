@@ -49,7 +49,7 @@ fun PatientEntryScreen(
     val repository = remember { PatientCounterRepository(database.patientCounterDao()) }
     
     val viewModel: PatientEntryViewModel = remember {
-        PatientEntryViewModel(repository)
+        PatientEntryViewModel(repository, context)
     }
 
     val patientName by viewModel.patientName.collectAsState()
@@ -60,9 +60,10 @@ fun PatientEntryScreen(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Reload patient counter when screen is displayed to ensure it's up to date
-    LaunchedEffect(Unit) {
-        viewModel.loadPatientCounter()
+    // Sync patient counter from database when screen is displayed
+    // This ensures we start from the next ID after the highest existing patient ID for this clinic
+    LaunchedEffect(clinicId) {
+        viewModel.syncPatientCounterFromDatabase(clinicId)
     }
 
     var showPermissionDialog by remember { mutableStateOf(false) }

@@ -28,10 +28,43 @@ class UploadService : Service() {
         createNotificationChannel()
     }
     
+    private var isForegroundService = false
+    
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_UPLOAD -> {
-                startForeground(NOTIFICATION_ID, createNotification(0, "Starting upload..."))
+                isForegroundService = false
+                try {
+                    // Try to start foreground service
+                    // For Android 15+ (API 35+), this may fail if app is not in foreground
+                    startForeground(NOTIFICATION_ID, createNotification(0, "Starting upload..."))
+                    isForegroundService = true
+                    android.util.Log.d("UploadService", "Foreground service started successfully")
+                } catch (e: SecurityException) {
+                    android.util.Log.e("UploadService", "SecurityException: Missing FOREGROUND_SERVICE_DATA_SYNC permission", e)
+                    // Show regular notification instead
+                    showRegularNotification(0, "Starting upload...")
+                    android.util.Log.w("UploadService", "Using regular notification instead of foreground")
+                } catch (e: RuntimeException) {
+                    // Check if it's ForegroundServiceStartNotAllowedException (Android 15+)
+                    if (e.message?.contains("ForegroundServiceStartNotAllowedException") == true ||
+                        e.message?.contains("not allowed due to mAllowStartForeground") == true) {
+                        android.util.Log.e("UploadService", "Cannot start foreground service - app may not be in foreground (Android 15+)", e)
+                        // Show regular notification instead
+                        showRegularNotification(0, "Starting upload...")
+                        android.util.Log.w("UploadService", "Using regular notification instead of foreground")
+                    } else {
+                        android.util.Log.e("UploadService", "RuntimeException starting foreground service", e)
+                        // Try regular notification as fallback
+                        showRegularNotification(0, "Starting upload...")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("UploadService", "Exception starting foreground service", e)
+                    // Show regular notification as fallback
+                    showRegularNotification(0, "Starting upload...")
+                }
+                
+                // Start upload regardless of foreground service status
                 startUpload()
             }
             ACTION_STOP_UPLOAD -> {
@@ -52,18 +85,35 @@ class UploadService : Service() {
     
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Use IMPORTANCE_DEFAULT for Android 16+ to ensure notifications are visible
+            // IMPORTANCE_LOW might not show notifications on newer Android versions
+            val importance = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                NotificationManager.IMPORTANCE_DEFAULT
+            } else {
+                NotificationManager.IMPORTANCE_LOW
+            }
+            
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Upload Progress",
-                NotificationManager.IMPORTANCE_LOW
+                importance
             ).apply {
                 description = "Shows upload progress for patient data"
-                setShowBadge(false)
+                setShowBadge(true)
                 setSound(null, null)
                 enableVibration(false)
+                // Enable lights and lockscreen visibility for better visibility
+                enableLights(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+            
+            // Check if notifications are enabled for this channel
+            val channelSettings = notificationManager.getNotificationChannel(CHANNEL_ID)
+            if (channelSettings?.importance == NotificationManager.IMPORTANCE_NONE) {
+                android.util.Log.w("UploadService", "Notification channel is disabled by user")
+            }
         }
     }
     
@@ -76,6 +126,13 @@ class UploadService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         
+        // Use higher priority for Android 16+ to ensure visibility
+        val priority = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            NotificationCompat.PRIORITY_DEFAULT
+        } else {
+            NotificationCompat.PRIORITY_LOW
+        }
+        
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Uploading to Cloud")
             .setContentText(status)
@@ -84,8 +141,10 @@ class UploadService : Service() {
             .setOngoing(true)
             .setAutoCancel(false)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(priority)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setShowWhen(true)
             .apply {
                 // Make it non-cancellable
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -95,10 +154,75 @@ class UploadService : Service() {
             .build()
     }
     
-    private fun updateNotification(progress: Int, status: String) {
+    private fun showRegularNotification(progress: Int, status: String) {
+        // Check if notifications are enabled (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            if (!notificationManager.areNotificationsEnabled()) {
+                android.util.Log.w("UploadService", "Notifications are disabled by user")
+                return
+            }
+        }
+        
         val notification = createNotification(progress, status)
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        
+        // Check channel importance (Android 8+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = notificationManager.getNotificationChannel(CHANNEL_ID)
+            if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+                android.util.Log.w("UploadService", "Notification channel is disabled")
+                return
+            }
+        }
+        
+        try {
+            notificationManager.notify(NOTIFICATION_ID, notification)
+            android.util.Log.d("UploadService", "Regular notification shown: $status")
+        } catch (e: SecurityException) {
+            android.util.Log.e("UploadService", "SecurityException showing notification - POST_NOTIFICATIONS permission may be missing", e)
+        } catch (e: Exception) {
+            android.util.Log.e("UploadService", "Exception showing notification", e)
+        }
+    }
+    
+    private fun updateNotification(progress: Int, status: String) {
+        // Check if notifications are enabled (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            if (!notificationManager.areNotificationsEnabled()) {
+                android.util.Log.w("UploadService", "Notifications are disabled by user")
+                return
+            }
+        }
+        
+        val notification = createNotification(progress, status)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        // Check channel importance (Android 8+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = notificationManager.getNotificationChannel(CHANNEL_ID)
+            if (channel?.importance == NotificationManager.IMPORTANCE_NONE) {
+                android.util.Log.w("UploadService", "Notification channel is disabled")
+                return
+            }
+        }
+        
+        try {
+            if (isForegroundService) {
+                // Update foreground notification
+                val notificationManager = getSystemService(NotificationManager::class.java)
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            } else {
+                // Update regular notification
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            }
+            android.util.Log.d("UploadService", "Notification updated: $status (progress: $progress%)")
+        } catch (e: SecurityException) {
+            android.util.Log.e("UploadService", "SecurityException updating notification - POST_NOTIFICATIONS permission may be missing", e)
+        } catch (e: Exception) {
+            android.util.Log.e("UploadService", "Exception updating notification", e)
+        }
     }
     
     private fun startUpload() {

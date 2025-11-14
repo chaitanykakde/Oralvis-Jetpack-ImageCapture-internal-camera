@@ -27,8 +27,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
+import androidx.core.content.PermissionChecker
 import com.chaitany.oralvisjetpack.service.UploadService
 import com.chaitany.oralvisjetpack.utils.ImageUtils
 import com.chaitany.oralvisjetpack.utils.UploadQueueManager
@@ -189,6 +193,19 @@ fun ImageReviewGridScreen(
                     // Create zip file first, then add to queue
                     scope.launch(Dispatchers.IO) {
                         try {
+                            // Check notification permission for Android 13+ (required for notifications)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                val hasNotificationPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) == PackageManager.PERMISSION_GRANTED
+                                
+                                if (!hasNotificationPermission) {
+                                    android.util.Log.w("ImageReviewGrid", "POST_NOTIFICATIONS permission not granted - notifications may not show")
+                                    // Continue anyway, but log warning
+                                }
+                            }
+                            
                             // Check storage permissions before creating zip
                             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                                 if (!android.os.Environment.isExternalStorageManager()) {

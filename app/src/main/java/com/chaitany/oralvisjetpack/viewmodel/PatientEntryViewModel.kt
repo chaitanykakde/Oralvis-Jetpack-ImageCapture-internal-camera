@@ -1,16 +1,28 @@
 package com.chaitany.oralvisjetpack.viewmodel
 
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chaitany.oralvisjetpack.OralVisApplication
 import com.chaitany.oralvisjetpack.data.repository.PatientCounterRepository
 import com.chaitany.oralvisjetpack.utils.CSVUtils
+import com.amazonaws.ClientConfiguration
+import com.amazonaws.regions.Regions
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
+import com.amazonaws.services.dynamodbv2.model.AttributeValue
+import com.amazonaws.services.dynamodbv2.model.QueryRequest
+import com.amazonaws.services.dynamodbv2.model.QueryResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PatientEntryViewModel(
-    private val patientCounterRepository: PatientCounterRepository
+    private val patientCounterRepository: PatientCounterRepository,
+    private val context: Context? = null
 ) : ViewModel() {
 
     private val _patientName = MutableStateFlow("")
@@ -41,6 +53,86 @@ class PatientEntryViewModel(
     fun loadPatientCounter() {
         viewModelScope.launch {
             _patientCounter.value = patientCounterRepository.getPatientCounter()
+        }
+    }
+    
+    /**
+     * Sync patient counter from DynamoDB for the given clinic
+     * Finds the maximum patient ID in the database and sets counter to max + 1
+     */
+    fun syncPatientCounterFromDatabase(clinicId: Int) {
+        viewModelScope.launch {
+            try {
+                val maxPatientId = withContext(Dispatchers.IO) {
+                    getMaxPatientIdFromDynamoDB(clinicId)
+                }
+                
+                if (maxPatientId > 0) {
+                    // Set counter to max + 1
+                    val nextCounter = maxPatientId + 1
+                    patientCounterRepository.updatePatientCounter(nextCounter)
+                    _patientCounter.value = nextCounter
+                    Log.d("PatientEntryVM", "Synced patient counter from database: maxPatientId=$maxPatientId, nextCounter=$nextCounter")
+                } else {
+                    // No patients found, use local counter or start from 1
+                    val localCounter = patientCounterRepository.getPatientCounter()
+                    if (localCounter == 1) {
+                        // Keep it at 1 if no patients exist
+                        Log.d("PatientEntryVM", "No patients found in database for clinic $clinicId, starting from 1")
+                    } else {
+                        _patientCounter.value = localCounter
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PatientEntryVM", "Error syncing patient counter from database", e)
+                // Fallback to local counter
+                _patientCounter.value = patientCounterRepository.getPatientCounter()
+            }
+        }
+    }
+    
+    private suspend fun getMaxPatientIdFromDynamoDB(clinicId: Int): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                val credentialsProvider = OralVisApplication.credentialsProvider
+                
+                val clientConfig = ClientConfiguration().apply {
+                    connectionTimeout = 30000
+                    socketTimeout = 60000
+                    maxErrorRetry = 3
+                }
+                
+                val region = com.amazonaws.regions.Region.getRegion(Regions.AP_SOUTH_1)
+                val dynamoDBClient = AmazonDynamoDBClient(credentialsProvider, clientConfig)
+                dynamoDBClient.setRegion(region)
+                
+                // Query patients for this clinic using GSI
+                val queryRequest = QueryRequest()
+                    .withTableName("OralVis_Patients")
+                    .withIndexName("ClinicIdIndex")
+                    .withKeyConditionExpression("clinicId = :clinicId")
+                    .withExpressionAttributeValues(
+                        mapOf(":clinicId" to AttributeValue().withN(clinicId.toString()))
+                    )
+                
+                val queryResult: QueryResult = dynamoDBClient.query(queryRequest)
+                
+                // Find maximum patient ID
+                var maxPatientId = 0
+                queryResult.items.forEach { item ->
+                    val patientIdStr = item["patientId"]?.s
+                    val patientId = patientIdStr?.toIntOrNull() ?: 0
+                    if (patientId > maxPatientId) {
+                        maxPatientId = patientId
+                    }
+                }
+                
+                Log.d("PatientEntryVM", "Found max patient ID: $maxPatientId for clinic $clinicId (total patients: ${queryResult.items.size})")
+                maxPatientId
+            } catch (e: Exception) {
+                Log.e("PatientEntryVM", "Error querying DynamoDB for max patient ID", e)
+                0
+            }
         }
     }
 
