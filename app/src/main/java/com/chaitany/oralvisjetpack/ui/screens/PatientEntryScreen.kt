@@ -41,7 +41,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun PatientEntryScreen(
-    clinicId: Int,
+    clinicId: String,
     onNavigateToImageCapture: (String, Int) -> Unit
 ) {
     val context = LocalContext.current

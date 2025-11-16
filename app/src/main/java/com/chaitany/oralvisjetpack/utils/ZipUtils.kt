@@ -16,7 +16,7 @@ object ZipUtils {
         folderName: String,
         imageFiles: Map<String, ByteArray>,
         excelBytes: ByteArray,
-        clinicId: Int,
+        clinicId: String,
         patientId: Int
     ): Result<String> = withContext(Dispatchers.IO) {
         try {

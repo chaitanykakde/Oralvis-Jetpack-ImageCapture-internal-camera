@@ -47,11 +47,11 @@ fun NavGraph(
         composable(Screen.Welcome.route) {
             WelcomeScreen(
                 onProceed = {
-                    val clinicId = preferencesManager.getClinicIdInt()
+                    val clinicId = preferencesManager.getClinicId() ?: ""
                     navController.navigate(Screen.PatientEntry.createRoute(clinicId))
                 },
                 onHistoryClick = {
-                    val clinicId = preferencesManager.getClinicIdInt()
+                    val clinicId = preferencesManager.getClinicId() ?: ""
                     navController.navigate(Screen.History.createRoute(clinicId))
                 },
                 onLogout = {
@@ -67,10 +67,10 @@ fun NavGraph(
         composable(
             route = Screen.PatientEntry.route,
             arguments = listOf(
-                navArgument("clinicId") { type = NavType.IntType }
+                navArgument("clinicId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            val clinicId = backStackEntry.arguments?.getString("clinicId") ?: ""
             
             PatientEntryScreen(
                 clinicId = clinicId,
@@ -86,12 +86,12 @@ fun NavGraph(
             route = Screen.ImageSequence.route,
             arguments = listOf(
                 navArgument("folderName") { type = NavType.StringType },
-                navArgument("clinicId") { type = NavType.IntType },
+                navArgument("clinicId") { type = NavType.StringType },
                 navArgument("patientId") { type = NavType.IntType }
             )
         ) { backStackEntry ->
             val folderName = backStackEntry.arguments?.getString("folderName") ?: ""
-            val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            val clinicId = backStackEntry.arguments?.getString("clinicId") ?: ""
             val patientId = backStackEntry.arguments?.getInt("patientId") ?: 0
             
             val scope = rememberCoroutineScope()
@@ -116,10 +116,10 @@ fun NavGraph(
         composable(
             route = Screen.History.route,
             arguments = listOf(
-                navArgument("clinicId") { type = NavType.IntType }
+                navArgument("clinicId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val clinicId = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            val clinicId = backStackEntry.arguments?.getString("clinicId") ?: ""
             
             HistoryScreen(
                 clinicId = clinicId,
@@ -138,11 +138,11 @@ fun NavGraph(
             route = Screen.SessionDetail.route,
             arguments = listOf(
                 navArgument("patientId") { type = NavType.StringType },
-                navArgument("clinicId") { type = NavType.IntType }
+                navArgument("clinicId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val patientId = backStackEntry.arguments?.getString("patientId") ?: ""
-            val clinicIdParam = backStackEntry.arguments?.getInt("clinicId") ?: 0
+            val clinicIdParam = backStackEntry.arguments?.getString("clinicId") ?: ""
             
             SessionDetailScreen(
                 patientId = patientId,

@@ -8,7 +8,7 @@ object PatientMetadataUtils {
     
     fun savePatientMetadata(
         context: Context,
-        clinicId: Int,
+        clinicId: String,
         patientId: Int,
         name: String,
         age: String,
@@ -28,7 +28,7 @@ object PatientMetadataUtils {
     
     fun getPatientMetadata(
         context: Context,
-        clinicId: Int,
+        clinicId: String,
         patientId: Int
     ): PatientMetadata? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

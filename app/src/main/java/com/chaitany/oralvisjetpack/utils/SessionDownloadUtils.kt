@@ -20,7 +20,7 @@ object SessionDownloadUtils {
     
     suspend fun downloadAndCreateZip(
         context: Context,
-        clinicId: Int,
+        clinicId: String,
         patientId: String,
         imagePaths: Map<String, String>
     ): Result<File> = withContext(Dispatchers.IO) {

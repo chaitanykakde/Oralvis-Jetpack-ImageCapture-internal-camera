@@ -47,7 +47,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 @Composable
 fun ImageSequenceScreen(
     folderName: String,
-    clinicId: Int,
+    clinicId: String,
     patientId: Int,
     onComplete: () -> Unit,
     onBackPressed: () -> Unit

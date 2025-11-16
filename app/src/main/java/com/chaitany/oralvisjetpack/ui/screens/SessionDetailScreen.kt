@@ -46,7 +46,7 @@ import java.io.File
 @Composable
 fun SessionDetailScreen(
     patientId: String,
-    clinicId: Int,
+    clinicId: String,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -56,8 +56,8 @@ fun SessionDetailScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     
-    LaunchedEffect(patientId) {
-        viewModel.loadPatient(patientId)
+    LaunchedEffect(patientId, clinicId) {
+        viewModel.loadPatient(patientId, clinicId)
     }
     val scope = rememberCoroutineScope()
     val primaryBlue = Color(0xFF4A8BBF)
@@ -221,7 +221,7 @@ fun SessionDetailScreen(
                         modifier = Modifier.padding(16.dp)
                     )
                     Button(
-                        onClick = { viewModel.loadPatient(patientId) },
+                        onClick = { viewModel.loadPatient(patientId, clinicId) },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
                     ) {
                         Text("Retry")

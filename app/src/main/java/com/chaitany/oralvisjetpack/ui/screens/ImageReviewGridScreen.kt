@@ -46,7 +46,7 @@ import java.io.File
 @Composable
 fun ImageReviewGridScreen(
     folderName: String,
-    clinicId: Int,
+    clinicId: String,
     patientId: Int,
     imageFiles: Map<String, ByteArray>,
     excelBytes: ByteArray,

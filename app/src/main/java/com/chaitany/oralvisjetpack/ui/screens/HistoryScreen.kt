@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.ui.draw.shadow
@@ -35,9 +36,9 @@ enum class UploadStatus {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    clinicId: Int,
+    clinicId: String,
     onBack: () -> Unit,
-    onSessionClick: (patientId: String, clinicId: Int) -> Unit
+    onSessionClick: (patientId: String, clinicId: String) -> Unit
 ) {
     val context = LocalContext.current
     val viewModel: HistoryViewModel = remember { HistoryViewModel(context) }
@@ -45,9 +46,11 @@ fun HistoryScreen(
     val patients by viewModel.patients.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val isDeleting by viewModel.isDeleting.collectAsState()
     
     var selectedTab by remember { mutableStateOf(HistoryTab.History) }
     var searchQuery by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // (patientId, patientName)
     
     // Colors matching the design
     val primaryBlue = Color(0xFF4A8BBF)
@@ -56,7 +59,18 @@ fun HistoryScreen(
     val lightGray = Color(0xFFE0E0E0)
     
     LaunchedEffect(clinicId) {
-        viewModel.loadPatientsForClinic(clinicId)
+        // CRITICAL: Verify clinicId is valid before loading
+        android.util.Log.d("HistoryScreen", "=== LaunchedEffect triggered with clinicId: '$clinicId' (length=${clinicId.length}) ===")
+        if (clinicId.isNotEmpty()) {
+            android.util.Log.d("HistoryScreen", "✓ Valid clinicId, loading patients for clinicId: '$clinicId'")
+            viewModel.loadPatientsForClinic(clinicId)
+        } else {
+            val errorMsg = "⚠️ Invalid clinicId: '$clinicId' - cannot load patients. Please login again."
+            android.util.Log.e("HistoryScreen", errorMsg)
+            // Set error in ViewModel
+            viewModel.clearError() // Clear any previous error
+            // We can't set error directly, but the ViewModel will handle it
+        }
     }
     
     // Filter patients based on search query
@@ -258,6 +272,12 @@ fun HistoryScreen(
                                             onSessionClick(patientId, clinicId)
                                         }
                                     },
+                                    onDelete = {
+                                        patient.patientId?.let { patientId ->
+                                            showDeleteDialog = Pair(patientId, patient.name ?: "Unknown")
+                                        }
+                                    },
+                                    isDeleting = isDeleting,
                                     primaryBlue = primaryBlue,
                                     darkBlue = darkBlue,
                                     lightBlueBorder = lightBlueBorder
@@ -267,6 +287,44 @@ fun HistoryScreen(
                     }
                 }
             }
+        }
+        
+        // Delete Confirmation Dialog
+        showDeleteDialog?.let { (patientId, patientName) ->
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = null },
+                title = { Text("Delete Session", fontWeight = FontWeight.Bold) },
+                text = { 
+                    Text("Are you sure you want to delete the session for patient \"$patientName\"?\n\nThis action cannot be undone.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deletePatient(
+                                clinicId = clinicId,
+                                patientId = patientId,
+                                onSuccess = {
+                                    showDeleteDialog = null
+                                    // Reload patients to refresh the list
+                                    viewModel.loadPatientsForClinic(clinicId)
+                                },
+                                onError = { errorMsg ->
+                                    showDeleteDialog = null
+                                    // Error is already set in ViewModel
+                                }
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = null }) {
+                        Text("Cancel", color = primaryBlue)
+                    }
+                }
+            )
         }
     }
 }
@@ -313,6 +371,8 @@ fun TabButton(
 fun PatientCard(
     patient: com.chaitany.oralvisjetpack.data.model.PatientData,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
+    isDeleting: Boolean,
     primaryBlue: Color,
     darkBlue: Color,
     lightBlueBorder: Color
@@ -370,9 +430,10 @@ fun PatientCard(
                 )
             }
             
-            // Status Indicator
+            // Status Indicator and Delete Button
             Column(
-                horizontalAlignment = Alignment.End
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -394,6 +455,28 @@ fun PatientCard(
                         color = darkBlue,
                         fontWeight = FontWeight.Medium
                     )
+                }
+                
+                // Delete Icon Button
+                IconButton(
+                    onClick = onDelete,
+                    enabled = !isDeleting,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = primaryBlue
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Session",
+                            tint = Color(0xFFF44336), // Red color for delete
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }

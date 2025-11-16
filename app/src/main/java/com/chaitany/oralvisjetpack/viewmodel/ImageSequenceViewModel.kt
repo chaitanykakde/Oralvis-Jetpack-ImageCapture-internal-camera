@@ -49,7 +49,7 @@ data class CaptureStep(
 class ImageSequenceViewModel(
     private val context: Context,
     private val folderName: String,
-    private val clinicId: Int,
+    private val clinicId: String,
     private val patientId: Int,
     private val excelBytes: ByteArray
 ) : ViewModel() {
@@ -313,8 +313,9 @@ class ImageSequenceViewModel(
                 
                 // Get clinicId from active session (PreferencesManager)
                 // This ensures we use the logged-in clinic's ID, not a parameter
-                val activeClinicId = preferencesManager.getClinicIdInt()
-                if (activeClinicId == 0) {
+                // clinicId can contain string characters (e.g., "CLINIC001", "ABC123")
+                val activeClinicId = preferencesManager.getClinicId()
+                if (activeClinicId.isNullOrEmpty()) {
                     throw Exception("No active clinic session found")
                 }
                 
@@ -372,7 +373,7 @@ class ImageSequenceViewModel(
                     imagePaths[fileName] = s3Key
                 }
                 
-                // Get patient metadata using activeClinicId
+                // Get patient metadata using activeClinicId (String type)
                 val patientMetadata = PatientMetadataUtils.getPatientMetadata(context, activeClinicId, patientId)
                 
                 if (patientMetadata != null) {
@@ -400,14 +401,16 @@ class ImageSequenceViewModel(
                         this.timestamp = finalTimestamp
                     }
                     
-                    // Log timestamp before saving
+                    // CRITICAL: Log clinicId before saving to verify it's correct
                     val timestampStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                         .format(java.util.Date(finalTimestamp))
-                    Log.d("ImageSequenceVM", "Saving patient data to DynamoDB: patientId=$patientId, timestamp=$finalTimestamp ($timestampStr)")
+                    Log.d("ImageSequenceVM", "=== SAVING PATIENT DATA TO DYNAMODB ===")
+                    Log.d("ImageSequenceVM", "patientId=$patientId, clinicId=$activeClinicId, timestamp=$finalTimestamp ($timestampStr)")
+                    Log.d("ImageSequenceVM", "PatientData.clinicId=${patientData.clinicId}, PatientData.patientId=${patientData.patientId}")
                     
                     // Save to DynamoDB
                     dynamoDBMapper.save(patientData)
-                    Log.d("ImageSequenceVM", "Successfully saved patient data to DynamoDB with timestamp=$finalTimestamp")
+                    Log.d("ImageSequenceVM", "✓ Successfully saved patient data to DynamoDB: patientId=$patientId, clinicId=$activeClinicId, timestamp=$finalTimestamp")
                     
                     withContext(Dispatchers.Main) {
                         _uploadSuccess.value = true
@@ -418,9 +421,24 @@ class ImageSequenceViewModel(
                 }
                 
             } catch (e: Exception) {
-                Log.e("ImageSequenceVM", "AWS upload failed", e)
+                Log.e("ImageSequenceVM", "❌ AWS upload failed", e)
+                e.printStackTrace()
+                
+                // Provide detailed error message
+                val errorMsg = when {
+                    e.message?.contains("ResourceNotFoundException") == true -> 
+                        "DynamoDB table not found. Please create the table first."
+                    e.message?.contains("AccessDeniedException") == true -> 
+                        "Access denied. Please check AWS credentials."
+                    e.message?.contains("Network") == true || e.message?.contains("timeout") == true -> 
+                        "Network error. Please check your internet connection."
+                    else -> "Upload Failed: ${e.message ?: "Unknown error"}. Data saved locally."
+                }
+                
+                Log.e("ImageSequenceVM", "Error details: $errorMsg")
+                
                 withContext(Dispatchers.Main) {
-                    _errorMessage.value = "Upload Failed. Saved locally."
+                    _errorMessage.value = errorMsg
                     onComplete() // Still complete even if upload fails
                 }
             } finally {

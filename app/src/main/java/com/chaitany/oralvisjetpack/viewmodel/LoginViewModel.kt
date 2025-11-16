@@ -60,9 +60,9 @@ class LoginViewModel(private val context: Context) : ViewModel() {
         
         viewModelScope.launch {
             try {
-                // Get all clinics to check ID and password separately
+                // Get all clinics from S3 (with assets fallback) to check ID and password separately
                 val clinics = withContext(Dispatchers.IO) {
-                    CsvAuthUtils.readClinicsFromAssets(context)
+                    CsvAuthUtils.readClinicsFromS3OrAssets(context)
                 }
                 
                 // Check if clinic ID exists

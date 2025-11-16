@@ -2,15 +2,19 @@ package com.chaitany.oralvisjetpack.data.model
 
 import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.DynamoDBAttribute
 import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.DynamoDBHashKey
+import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.DynamoDBRangeKey
 import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.DynamoDBTable
 
 @DynamoDBTable(tableName = "OralVis_Patients")
 data class PatientData(
-    @DynamoDBHashKey(attributeName = "patientId")
-    var patientId: String? = null,
+    // clinicId is now the partition key (hash key) - all patients for a clinic are grouped together
+    // clinicId can contain string characters (e.g., "CLINIC001", "ABC123")
+    @DynamoDBHashKey(attributeName = "clinicId")
+    var clinicId: String? = null,
     
-    @DynamoDBAttribute(attributeName = "clinicId")
-    var clinicId: Int? = null,
+    // patientId is now the range key - unique within each clinic
+    @DynamoDBRangeKey(attributeName = "patientId")
+    var patientId: String? = null,
     
     @DynamoDBAttribute(attributeName = "name")
     var name: String? = null,

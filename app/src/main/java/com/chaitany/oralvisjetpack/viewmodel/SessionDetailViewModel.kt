@@ -28,14 +28,14 @@ class SessionDetailViewModel(private val context: Context) : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
-    fun loadPatient(patientId: String) {
+    fun loadPatient(patientId: String, clinicId: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             
             try {
                 val patientData = withContext(Dispatchers.IO) {
-                    fetchPatientFromDynamoDB(patientId)
+                    fetchPatientFromDynamoDB(patientId, clinicId)
                 }
                 
                 _patient.value = patientData
@@ -49,7 +49,7 @@ class SessionDetailViewModel(private val context: Context) : ViewModel() {
         }
     }
     
-    private suspend fun fetchPatientFromDynamoDB(patientId: String): PatientData? {
+    private suspend fun fetchPatientFromDynamoDB(patientId: String, clinicId: String): PatientData? {
         return withContext(Dispatchers.IO) {
             try {
                 val credentialsProvider = OralVisApplication.credentialsProvider
@@ -69,17 +69,20 @@ class SessionDetailViewModel(private val context: Context) : ViewModel() {
                 // Initialize DynamoDB mapper
                 val dynamoDBMapper = DynamoDBMapper(dynamoDBClient)
                 
-                // Load patient by ID
+                // Load patient by composite key: clinicId (partition) + patientId (range)
                 val patient = PatientData().apply {
-                    this.patientId = patientId
+                    this.clinicId = clinicId  // Partition key
+                    this.patientId = patientId  // Range key
                 }
                 
+                Log.d("SessionDetailViewModel", "Loading patient with clinicId=$clinicId, patientId=$patientId")
                 val loadedPatient = dynamoDBMapper.load(patient)
                 Log.d("SessionDetailViewModel", "Fetched patient from DynamoDB: ${loadedPatient?.name}")
                 
                 loadedPatient
             } catch (e: Exception) {
                 Log.e("SessionDetailViewModel", "Error fetching from DynamoDB", e)
+                e.printStackTrace()
                 throw e
             }
         }

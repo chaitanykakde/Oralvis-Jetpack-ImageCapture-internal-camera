@@ -31,7 +31,7 @@ object UploadQueueManager {
     fun addToQueue(
         context: Context,
         folderName: String,
-        clinicId: Int,
+        clinicId: String,
         patientId: Int,
         imageFiles: Map<String, ByteArray>,
         excelBytes: ByteArray
@@ -59,10 +59,11 @@ object UploadQueueManager {
             
             // Save metadata
             val metadataFile = File(patientFolder, "metadata.json")
+            // CRITICAL: clinicId must be quoted in JSON since it can contain letters (e.g., "MDC202501")
             val metadata = """
                 {
                     "folderName": "$folderName",
-                    "clinicId": $clinicId,
+                    "clinicId": "$clinicId",
                     "patientId": $patientId,
                     "excelBytes": "${android.util.Base64.encodeToString(excelBytes, android.util.Base64.DEFAULT)}"
                 }
@@ -97,11 +98,19 @@ object UploadQueueManager {
                     return@launch
                 }
                 
+                // Updated regex to support clinicId with letters (e.g., "MDC202501_3", "CLINIC001_1")
+                // Pattern: clinicId (alphanumeric + underscore/hyphen) + "_" + patientId (digits)
                 val patientFolders = queueDir.listFiles { file ->
-                    file.isDirectory && file.name.matches(Regex("\\d+_\\d+"))
+                    file.isDirectory && file.name.matches(Regex("[\\w-]+_\\d+"))
                 } ?: emptyArray()
                 
+                Log.d(TAG, "Found ${patientFolders.size} patient folders in queue")
+                patientFolders.forEach { folder ->
+                    Log.d(TAG, "  - Queue folder: ${folder.name}")
+                }
+                
                 if (patientFolders.isEmpty()) {
+                    Log.w(TAG, "No patient folders found matching pattern [\\w-]+_\\d+")
                     withContext(Dispatchers.Main) {
                         onComplete(true, "No items in queue")
                     }
@@ -235,11 +244,19 @@ object UploadQueueManager {
                     return@launch
                 }
                 
+                // Updated regex to support clinicId with letters (e.g., "MDC202501_3", "CLINIC001_1")
+                // Pattern: clinicId (alphanumeric + underscore/hyphen) + "_" + patientId (digits)
                 val patientFolders = queueDir.listFiles { file ->
-                    file.isDirectory && file.name.matches(Regex("\\d+_\\d+"))
+                    file.isDirectory && file.name.matches(Regex("[\\w-]+_\\d+"))
                 } ?: emptyArray()
                 
+                Log.d(TAG, "Found ${patientFolders.size} patient folders in queue (processQueue)")
+                patientFolders.forEach { folder ->
+                    Log.d(TAG, "  - Queue folder: ${folder.name}")
+                }
+                
                 if (patientFolders.isEmpty()) {
+                    Log.w(TAG, "No patient folders found matching pattern [\\w-]+_\\d+")
                     onComplete?.invoke(true, "No items in queue")
                     return@launch
                 }
@@ -340,7 +357,8 @@ object UploadQueueManager {
                 throw Exception("Invalid metadata: missing clinicId or patientId")
             }
             
-            val clinicId = clinicIdStr.toIntOrNull() ?: throw Exception("Invalid clinicId: '$clinicIdStr'")
+            // clinicId can be a string (e.g., "CLINIC001", "ABC123")
+            val clinicId = clinicIdStr
             val patientId = patientIdStr.toIntOrNull() ?: throw Exception("Invalid patientId: '$patientIdStr'")
             val excelBytes = android.util.Base64.decode(excelBytesBase64, android.util.Base64.DEFAULT)
             
@@ -372,7 +390,8 @@ object UploadQueueManager {
             imageFiles.forEachIndexed { index, imageFile ->
                 try {
                     val fileName = imageFile.name
-                    val s3Key = "public/$clinicId/$patientId/$fileName"
+                    // Use consistent format: clinicId_patientId (matches ImageSequenceViewModel)
+                    val s3Key = "public/${clinicId}_${patientId}/$fileName"
                     val imageBytes = imageFile.readBytes()
                     Log.d(TAG, "Uploading image ${index + 1}/${imageFiles.size}: $fileName (${imageBytes.size / 1024}KB)")
                     
@@ -429,14 +448,16 @@ object UploadQueueManager {
                     this.timestamp = patientMetadata.timestamp ?: System.currentTimeMillis()
                 }
                 
-                // Log timestamp before saving
+                // CRITICAL: Log clinicId before saving to verify it's correct
                 val timestampStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                     .format(java.util.Date(patientData.timestamp!!))
-                Log.d(TAG, "Saving patient data to DynamoDB: patientId=$patientId, timestamp=${patientData.timestamp} ($timestampStr)")
+                Log.d(TAG, "=== SAVING PATIENT DATA TO DYNAMODB (QUEUE) ===")
+                Log.d(TAG, "patientId=$patientId, clinicId=$clinicId, timestamp=${patientData.timestamp} ($timestampStr)")
+                Log.d(TAG, "PatientData.clinicId=${patientData.clinicId}, PatientData.patientId=${patientData.patientId}")
                 
                 // Save to DynamoDB
                 dynamoDBMapper.save(patientData)
-                Log.d(TAG, "Successfully saved patient data to DynamoDB with timestamp=${patientData.timestamp}")
+                Log.d(TAG, "✓ Successfully saved patient data to DynamoDB: patientId=$patientId, clinicId=$clinicId, timestamp=${patientData.timestamp}")
                 
                 onComplete(true)
             } else {

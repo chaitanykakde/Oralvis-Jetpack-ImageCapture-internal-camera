@@ -60,7 +60,7 @@ class PatientEntryViewModel(
      * Sync patient counter from DynamoDB for the given clinic
      * Finds the maximum patient ID in the database and sets counter to max + 1
      */
-    fun syncPatientCounterFromDatabase(clinicId: Int) {
+    fun syncPatientCounterFromDatabase(clinicId: String) {
         viewModelScope.launch {
             try {
                 val maxPatientId = withContext(Dispatchers.IO) {
@@ -91,7 +91,7 @@ class PatientEntryViewModel(
         }
     }
     
-    private suspend fun getMaxPatientIdFromDynamoDB(clinicId: Int): Int {
+    private suspend fun getMaxPatientIdFromDynamoDB(clinicId: String): Int {
         return withContext(Dispatchers.IO) {
             try {
                 val credentialsProvider = OralVisApplication.credentialsProvider
@@ -106,18 +106,19 @@ class PatientEntryViewModel(
                 val dynamoDBClient = AmazonDynamoDBClient(credentialsProvider, clientConfig)
                 dynamoDBClient.setRegion(region)
                 
-                // Query patients for this clinic using GSI
+                // Query patients for this clinic using clinicId as partition key (String type)
                 val queryRequest = QueryRequest()
                     .withTableName("OralVis_Patients")
-                    .withIndexName("ClinicIdIndex")
                     .withKeyConditionExpression("clinicId = :clinicId")
                     .withExpressionAttributeValues(
-                        mapOf(":clinicId" to AttributeValue().withN(clinicId.toString()))
+                        mapOf(":clinicId" to AttributeValue().withS(clinicId))
                     )
+                
+                Log.d("PatientEntryVM", "Querying for max patient ID for clinicId=$clinicId (as partition key)")
                 
                 val queryResult: QueryResult = dynamoDBClient.query(queryRequest)
                 
-                // Find maximum patient ID
+                // Find maximum patient ID for this clinic
                 var maxPatientId = 0
                 queryResult.items.forEach { item ->
                     val patientIdStr = item["patientId"]?.s
@@ -131,6 +132,7 @@ class PatientEntryViewModel(
                 maxPatientId
             } catch (e: Exception) {
                 Log.e("PatientEntryVM", "Error querying DynamoDB for max patient ID", e)
+                e.printStackTrace()
                 0
             }
         }
